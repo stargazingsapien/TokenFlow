@@ -22,10 +22,13 @@ create table if not exists tokens (
   id uuid primary key default gen_random_uuid(),
   queue_id uuid references daily_queues(id) on delete cascade,
   token_number int not null,
+  patient_name varchar(255) not null default 'Patient',
   patient_phone varchar(20),
   status varchar(50) default 'WAITING',
   issued_at timestamp with time zone default now(),
-  served_at timestamp with time zone
+  served_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  actual_duration_minutes int
 );
 
 alter table clinics enable row level security;

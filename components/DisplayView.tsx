@@ -1,86 +1,212 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { estimateDynamicWait } from "@/lib/queue";
+import { playHospitalChime, speakCallAnnouncement } from "@/lib/alerts";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export function DisplayView() {
-  const { queue } = useQueue();
-  const { t } = useI18n();
-  const lastTokenRef = useRef(queue.currentToken);
-  const upcoming = useMemo(
-    () =>
-      queue.tokens
-        .filter((token) => token.tokenNumber > queue.currentToken && token.status === "WAITING")
-        .slice(0, 8),
-    [queue.currentToken, queue.tokens]
+  const { queue, stats, audioEnabled, setAudioEnabled } = useQueue();
+  const { t, currentLanguage } = useI18n();
+
+  const [callBanner, setCallBanner] = useState<{
+    tokenNumber: number;
+    patientName: string;
+  } | null>(null);
+
+  const lastCalledTokenRef = useRef(queue.lastCalledToken);
+
+  const servingToken = stats.servingToken;
+
+  // Next upcoming waiting tokens in queue
+  const upcomingTokens = useMemo(
+    () => stats.waitingTokens.slice(0, 10),
+    [stats.waitingTokens]
   );
 
+  // Play sound & show banner when a patient is called
   useEffect(() => {
-    if (queue.currentToken === lastTokenRef.current || queue.currentToken === 0) return;
-    lastTokenRef.current = queue.currentToken;
+    if (!queue.lastCalledToken || queue.lastCalledToken === lastCalledTokenRef.current) {
+      return;
+    }
 
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
+    lastCalledTokenRef.current = queue.lastCalledToken;
+    const patientName = queue.lastCalledName || `Patient #${queue.lastCalledToken}`;
 
-    const audio = new AudioContextClass();
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-    oscillator.frequency.value = 740;
-    gain.gain.setValueAtTime(0.001, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, audio.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.32);
-    oscillator.connect(gain);
-    gain.connect(audio.destination);
-    oscillator.start();
-    oscillator.stop(audio.currentTime + 0.35);
-  }, [queue.currentToken]);
+    // Show visual announcement banner for 9 seconds
+    setCallBanner({ tokenNumber: queue.lastCalledToken, patientName });
+    const timer = setTimeout(() => {
+      setCallBanner(null);
+    }, 9000);
+
+    // Audio chime & speech
+    if (audioEnabled) {
+      playHospitalChime();
+      speakCallAnnouncement(queue.lastCalledToken, patientName, currentLanguage);
+    }
+
+    return () => clearTimeout(timer);
+  }, [queue.lastCalledToken, queue.lastCalledName, audioEnabled, currentLanguage]);
 
   return (
-    <section className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-7xl gap-5 lg:grid-cols-[1.3fr_0.7fr]">
-      <div className="flex flex-col justify-between rounded-lg bg-slatepanel p-8 text-white shadow-panel sm:p-10">
-        <div>
-          <p className="text-base font-bold uppercase tracking-[0.22em] text-amberline">{queue.clinicName}</p>
-          <h1 className="mt-4 text-4xl font-black sm:text-6xl">{t("nowServing")}</h1>
+    <section className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+      {/* Call Announcement Banner Overlay */}
+      {callBanner && (
+        <div className="fixed inset-x-4 top-20 z-50 mx-auto max-w-3xl animate-bounce rounded-2xl border-4 border-amberline bg-gradient-to-r from-slatepanel to-ink p-6 text-white shadow-2xl sm:inset-x-auto sm:w-full">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-5xl animate-spin">🔔</span>
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-amberline">
+                  {t("nowCalling")}
+                </p>
+                <h2 className="mt-1 text-3xl font-black sm:text-5xl">
+                  #{callBanner.tokenNumber} · {callBanner.patientName}
+                </h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  {t("proceedMessage")}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setCallBanner(null)}
+              className="rounded-full bg-white/20 p-2 text-white hover:bg-white/30 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Waiting Room Display Column */}
+      <div className="flex flex-col justify-between rounded-3xl bg-gradient-to-br from-slatepanel to-ink p-8 text-white shadow-2xl sm:p-12">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-base font-bold uppercase tracking-[0.25em] text-amberline">
+              {queue.clinicName}
+            </p>
+            <h1 className="mt-2 text-3xl font-black sm:text-5xl">{t("nowServing")}</h1>
+          </div>
+
+          {/* Audio Mute/Unmute Control for Display Screen */}
+          <button
+            onClick={() => {
+              setAudioEnabled(!audioEnabled);
+              if (!audioEnabled) {
+                playHospitalChime();
+              }
+            }}
+            className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20"
+          >
+            <span>{audioEnabled ? "🔊 Sound ON" : "🔇 Sound Muted"}</span>
+          </button>
         </div>
 
-        <div className="py-10 text-center">
-          <p className="text-[9rem] font-black leading-none sm:text-[14rem]">#{queue.currentToken}</p>
-          <p className="mt-5 text-2xl font-semibold text-slate-200">
-            {t("doctor")}: {queue.doctorName}
-          </p>
+        {/* Hero Serving Token Number & Patient Name */}
+        <div className="my-10 text-center">
+          {servingToken ? (
+            <div className="space-y-4">
+              <p className="text-[8rem] font-black leading-none tracking-tight sm:text-[13rem]">
+                #{servingToken.tokenNumber}
+              </p>
+              <div className="inline-block rounded-2xl bg-white/10 px-6 py-3 backdrop-blur-md">
+                <p className="text-2xl font-black text-amberline sm:text-4xl">
+                  {servingToken.patientName}
+                </p>
+              </div>
+              <p className="text-lg font-semibold text-slate-300 sm:text-xl">
+                {t("doctor")}: <span className="font-bold text-white">{queue.doctorName}</span>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 py-10">
+              <p className="text-6xl">🟢</p>
+              <h2 className="text-4xl font-black text-slate-200">{t("roomReady")}</h2>
+              <p className="text-lg text-slate-400">{t("readyForNext")}</p>
+            </div>
+          )}
         </div>
 
+        {/* Bottom OPD Status Metrics */}
         <div className="grid gap-3 sm:grid-cols-3">
-          <DisplayMetric label={t("issued")} value={queue.totalIssued} />
-          <DisplayMetric label={t("waiting")} value={Math.max(queue.totalIssued - queue.currentToken, 0)} />
-          <DisplayMetric label={t("avgMin")} value={queue.avgConsultMinutes} />
+          <DisplayMetric label={t("waiting")} value={stats.waitingCount} sub="in line" />
+          <DisplayMetric label={t("completedCheckups")} value={stats.completedCount} sub="done today" />
+          <DisplayMetric
+            label={t("dynamicWait")}
+            value={`~${stats.effectiveAvgMinutes}m`}
+            sub="avg pace"
+          />
         </div>
       </div>
 
-      <aside className="rounded-lg border border-white/70 bg-white p-6 shadow-panel">
-        <h2 className="text-3xl font-black text-ink">{t("upcoming")}</h2>
-        <div className="token-grid mt-6 grid gap-3">
-          {upcoming.length === 0 ? (
-            <p className="rounded-lg bg-cloud p-4 text-base font-bold text-slate-500">{t("noWaitingTokens")}</p>
-          ) : (
-            upcoming.map((token) => (
-              <div key={token.tokenNumber} className="rounded-lg bg-cloud p-4 text-center">
-                <p className="text-3xl font-black text-ink">#{token.tokenNumber}</p>
+      {/* Right Column: Upcoming Waiting Tokens List */}
+      <aside className="flex flex-col justify-between rounded-3xl border border-white/80 bg-white p-6 shadow-panel">
+        <div>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <h2 className="text-2xl font-black text-ink">{t("upcoming")}</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+              {stats.waitingCount} {t("waiting")}
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
+            {upcomingTokens.length === 0 ? (
+              <div className="rounded-2xl bg-cloud p-8 text-center">
+                <p className="text-3xl">☕</p>
+                <p className="mt-2 text-sm font-bold text-slate-500">{t("noWaitingTokens")}</p>
               </div>
-            ))
-          )}
+            ) : (
+              upcomingTokens.map((token, index) => {
+                const est = estimateDynamicWait(queue, token.tokenNumber);
+                return (
+                  <div
+                    key={token.tokenNumber}
+                    className="flex items-center justify-between rounded-xl border border-slate-100 bg-cloud/70 p-4 transition hover:border-mint/30 hover:bg-white"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-sm font-black text-white">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="text-lg font-black text-ink">
+                          #{token.tokenNumber}
+                        </p>
+                        <p className="text-xs font-bold text-slate-600 truncate max-w-[150px]">
+                          {token.patientName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-black text-amber-800">
+                        ~{est.waitMinutes} {t("min")}
+                      </span>
+                      <p className="mt-0.5 text-[10px] text-slate-400">
+                        {est.patientsAhead} ahead
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-slate-100 pt-3 text-center text-xs font-semibold text-slate-400">
+          📺 TokenFlow Realtime Waiting Room Screen
         </div>
       </aside>
     </section>
   );
 }
 
-function DisplayMetric({ label, value }: { label: string; value: number }) {
+function DisplayMetric({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="rounded-lg bg-white/10 p-4">
-      <p className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">{label}</p>
-      <p className="mt-2 text-4xl font-black">{value}</p>
+    <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-300">{label}</p>
+      <p className="mt-1 text-3xl font-black text-white">{value}</p>
+      {sub && <p className="text-[11px] text-slate-400">{sub}</p>}
     </div>
   );
 }
