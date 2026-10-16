@@ -100,7 +100,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                 />
               </div>
               <p className="mt-2 text-[11px] text-slate-400">
-                {t("enterTokenHelp")}
+                {t("yourTokenNumber")}
               </p>
             </div>
 
@@ -127,7 +127,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                 <p className="text-2xl font-black text-ink">{stats.waitingCount}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-500">{t("completedCountLabel")}</p>
+                <p className="text-xs font-semibold text-slate-500">{t("completedCheckups")}</p>
                 <p className="text-2xl font-black text-emerald-700">{stats.completedCount}</p>
               </div>
             </div>

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export function DisplayView() {
   const { queue, stats, audioEnabled, setAudioEnabled } = useQueue();
-  const { t, currentLanguage } = useI18n();
+  const { t, language } = useI18n();
 
   const [callBanner, setCallBanner] = useState<{
     tokenNumber: number;
@@ -43,11 +43,11 @@ export function DisplayView() {
     // Audio chime & speech
     if (audioEnabled) {
       playHospitalChime();
-      speakCallAnnouncement(queue.lastCalledToken, patientName, currentLanguage);
+      speakCallAnnouncement(queue.lastCalledToken, patientName, language);
     }
 
     return () => clearTimeout(timer);
-  }, [queue.lastCalledToken, queue.lastCalledName, audioEnabled, currentLanguage]);
+  }, [queue.lastCalledToken, queue.lastCalledName, audioEnabled, language]);
 
   return (
     <section className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.7fr]">

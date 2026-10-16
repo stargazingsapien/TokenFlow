@@ -7,6 +7,7 @@ const LANGUAGE_KEY = "tokenflow.language.v1";
 
 type I18nContextValue = {
   language: Language;
+  currentLanguage: Language;
   setLanguage: (language: Language) => void;
   t: (key: TranslationKey) => string;
 };
@@ -34,6 +35,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<I18nContextValue>(
     () => ({
       language,
+      currentLanguage: language,
       setLanguage,
       t: (key) => translations[language][key]
     }),

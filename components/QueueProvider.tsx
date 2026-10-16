@@ -57,7 +57,7 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const channelRef = useRef<ReturnType<typeof createQueueChannel> | null>(null);
   const lastProcessedCallRef = useRef<string | undefined>(undefined);
-  const { currentLanguage } = useI18n();
+  const { language } = useI18n();
 
   // Periodic tick every 3 seconds to keep dynamic wait times and consultation stopwatch real-time
   useEffect(() => {
@@ -78,11 +78,11 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     (tokenNumber: number, patientName: string) => {
       if (audioEnabled) {
         playHospitalChime();
-        speakCallAnnouncement(tokenNumber, patientName, currentLanguage);
+        speakCallAnnouncement(tokenNumber, patientName, language);
       }
       showSystemNotification(tokenNumber, patientName, queue.clinicName);
     },
-    [audioEnabled, currentLanguage, queue.clinicName]
+    [audioEnabled, language, queue.clinicName]
   );
 
   useEffect(() => {
