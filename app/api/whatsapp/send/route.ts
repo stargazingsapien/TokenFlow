@@ -23,6 +23,10 @@ export async function POST(request: Request) {
           clinicName?: string;
           doctorName?: string;
           templateName?: string;
+          bodyParams?: string[];
+          patientsAhead?: number;
+          waitMinutes?: number;
+          delayMinutes?: number;
         }
       | null;
 
@@ -42,7 +46,13 @@ export async function POST(request: Request) {
       patientName: String(body?.patientName ?? `Patient #${tokenNumber}`),
       clinicName: String(body?.clinicName ?? "TokenFlow Clinic"),
       doctorName: String(body?.doctorName ?? "Doctor"),
-      templateName: body?.templateName
+      templateName: body?.templateName,
+      bodyParams: Array.isArray(body?.bodyParams)
+        ? body.bodyParams.map((value) => String(value ?? ""))
+        : undefined,
+      patientsAhead: body?.patientsAhead,
+      waitMinutes: body?.waitMinutes,
+      delayMinutes: body?.delayMinutes
     });
 
     return NextResponse.json({

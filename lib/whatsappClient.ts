@@ -6,6 +6,12 @@ export type WhatsAppCallNotifyPayload = {
   patientName: string;
   clinicName: string;
   doctorName: string;
+  templateName?: string;
+  /** Exact body {{1}}…{{n}} values from the control UI */
+  bodyParams?: string[];
+  patientsAhead?: number;
+  waitMinutes?: number;
+  delayMinutes?: number;
 };
 
 export type WhatsAppCallNotifyResult = {

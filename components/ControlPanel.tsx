@@ -4,6 +4,7 @@ import { TokenRecord, estimateDynamicWait } from "@/lib/queue";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { StatusPill } from "./StatusPill";
+import { WhatsAppSendPanel } from "./WhatsAppSendPanel";
 import { useEffect, useMemo, useState } from "react";
 
 const clickerKeys = new Set([" ", "Enter", "ArrowRight", "n", "N"]);
@@ -313,6 +314,8 @@ export function ControlPanel() {
           </p>
         </div>
       </section>
+
+      <WhatsAppSendPanel />
 
       {/* Main Workspace (Doctor Console, Reception Desk, or Dual) */}
       <div

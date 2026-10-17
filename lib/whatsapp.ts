@@ -12,10 +12,14 @@ export type TokenCallNotifyInput = {
   clinicName: string;
   doctorName: string;
   templateName?: string;
+  /** When set (UI send), used as-is for template body variables */
+  bodyParams?: string[];
   /** Used by tf_almost_your_turn */
   patientsAhead?: number;
   /** Used by tf_almost_your_turn */
   waitMinutes?: number;
+  /** Used by tf_doctor_delayed */
+  delayMinutes?: number;
 };
 
 type WhatsAppTemplateResponse = {
@@ -100,6 +104,10 @@ function buildBodyParams(templateName: string, input: TokenCallNotifyInput) {
       ];
     case "tf_skipped_return":
       return [patientName, tokenNumber];
+    case "tf_visit_completed":
+      return [patientName, input.clinicName];
+    case "tf_doctor_delayed":
+      return [patientName, clinicDoctor, String(input.delayMinutes ?? input.waitMinutes ?? 10)];
     default:
       return [patientName, tokenNumber, clinicDoctor];
   }
@@ -115,7 +123,17 @@ export async function sendWhatsAppTokenCall(input: TokenCallNotifyInput) {
     throw new Error("Recipient phone number is invalid.");
   }
 
-  const bodyParams = buildBodyParams(template.name, input).slice(0, template.bodyParamsCount);
+  const bodyParams = (
+    Array.isArray(input.bodyParams) && input.bodyParams.length > 0
+      ? input.bodyParams.map((value) => String(value ?? "").trim())
+      : buildBodyParams(template.name, input)
+  ).slice(0, template.bodyParamsCount);
+
+  if (bodyParams.length < template.bodyParamsCount || bodyParams.some((value) => !value)) {
+    throw new Error(
+      `Template ${template.name} needs ${template.bodyParamsCount} filled body variable(s).`
+    );
+  }
   const components =
     bodyParams.length > 0
       ? [
