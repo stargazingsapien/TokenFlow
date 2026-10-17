@@ -10,6 +10,10 @@ export function isValidStaffLogin(username: string, password: string) {
   return normalizeCredential(username) === STAFF_USERNAME && normalizeCredential(password) === STAFF_PASSWORD;
 }
 
+export function isStaffSession(sessionValue: string | undefined | null) {
+  return normalizeCredential(sessionValue ?? "") === STAFF_SESSION_VALUE;
+}
+
 function normalizeCredential(value: string) {
   return value.trim();
 }

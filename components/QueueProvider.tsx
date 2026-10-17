@@ -24,6 +24,7 @@ import {
   showSystemNotification,
   speakCallAnnouncement
 } from "@/lib/alerts";
+import { notifyPatientWhatsApp } from "@/lib/whatsappClient";
 import { useI18n } from "./I18nProvider";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
@@ -125,6 +126,32 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     };
   }, [triggerCallAlert]);
 
+  const notifyCalledPatientWhatsApp = useCallback((state: QueueState) => {
+    if (!state.lastCalledToken) return;
+
+    const called = state.tokens.find((token) => token.tokenNumber === state.lastCalledToken);
+    if (!called) return;
+
+    const phone = called.patientPhone?.trim();
+    if (!phone) return;
+
+    void notifyPatientWhatsApp({
+      to: phone,
+      tokenNumber: called.tokenNumber,
+      patientName: called.patientName || state.lastCalledName || `Patient #${called.tokenNumber}`,
+      clinicName: state.clinicName,
+      doctorName: state.doctorName
+    }).then((result) => {
+      if (!result.ok) {
+        console.warn("[TokenFlow WhatsApp]", result.message);
+        return;
+      }
+      if (result.mode === "mock") {
+        console.info("[TokenFlow WhatsApp] mock send for token", called.tokenNumber);
+      }
+    });
+  }, []);
+
   const commit = useCallback(
     (updater: (state: QueueState) => QueueState, isCallAction = false) => {
       setQueue((current) => {
@@ -135,12 +162,14 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
         if (isCallAction && nextState.lastCalledToken && nextState.lastCalledName) {
           lastProcessedCallRef.current = nextState.lastCalledAt;
           triggerCallAlert(nextState.lastCalledToken, nextState.lastCalledName);
+          // Only the initiating control tab sends WhatsApp (not BroadcastChannel listeners).
+          notifyCalledPatientWhatsApp(nextState);
         }
 
         return nextState;
       });
     },
-    [triggerCallAlert]
+    [notifyCalledPatientWhatsApp, triggerCallAlert]
   );
 
   const enableNotifications = useCallback(async () => {
