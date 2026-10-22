@@ -65,13 +65,13 @@ export function loadQueue(): QueueState {
   let rawState: QueueState | null = null;
 
   if (storage) {
-    const saved = storage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
+    try {
+      const saved = storage.getItem(STORAGE_KEY);
+      if (saved) {
         rawState = JSON.parse(saved);
-      } catch {
-        rawState = null;
       }
+    } catch {
+      rawState = null;
     }
   }
 
@@ -83,7 +83,7 @@ export function loadQueue(): QueueState {
   return {
     ...defaultQueueState,
     ...rawState,
-    tokens: (rawState?.tokens || []).map((t) => ({
+    tokens: (Array.isArray(rawState?.tokens) ? rawState.tokens : []).map((t) => ({
       ...t,
       patientName: t.patientName || `Patient #${t.tokenNumber}`,
       status: (t.status as TokenStatus) || "WAITING"
@@ -95,7 +95,11 @@ export function saveQueue(state: QueueState) {
   if (typeof window === "undefined") return;
   memoryQueue = state;
   const storage = getStorage();
-  storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Keep the in-memory queue usable when browser storage is full or unavailable.
+  }
   saveCookieQueue(state);
 }
 

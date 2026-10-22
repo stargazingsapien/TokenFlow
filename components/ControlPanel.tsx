@@ -257,7 +257,7 @@ export function ControlPanel() {
 
         <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-800">
-            {t("waiting")} (Ketla baki che)
+            {t("waiting")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-3xl font-black text-amber-600">{stats.waitingCount}</span>
@@ -272,7 +272,7 @@ export function ControlPanel() {
 
         <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50/80 to-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-teal-800">
-            {t("completedCheckups")} (Ketla thay gaya)
+            {t("completedCheckups")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-3xl font-black text-teal-700">{stats.completedCount}</span>

@@ -12,7 +12,7 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const nextPath = searchParams.get("next") ?? "/control";
+  const requestedPath = searchParams.get("next") ?? "/control";
 
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-8">
@@ -33,25 +33,33 @@ export function LoginForm() {
             setError("");
             setIsSubmitting(true);
 
-            const response = await fetch("/api/login", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username, password })
-            });
+            try {
+              const response = await fetch("/api/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password })
+              });
 
-            setIsSubmitting(false);
+              if (!response.ok) {
+                setError(t("invalidLogin"));
+                return;
+              }
 
-            if (!response.ok) {
+              const destination = new URL(requestedPath, window.location.origin);
+              window.location.assign(
+                destination.origin === window.location.origin ? destination.href : "/control"
+              );
+            } catch {
               setError(t("invalidLogin"));
-              return;
+            } finally {
+              setIsSubmitting(false);
             }
-
-            window.location.assign(nextPath);
           }}
         >
           <label className="grid gap-1 text-sm font-bold text-slate-600">
             {t("username")}
             <input
+              required
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
@@ -62,6 +70,7 @@ export function LoginForm() {
           <label className="grid gap-1 text-sm font-bold text-slate-600">
             {t("password")}
             <input
+              required
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}

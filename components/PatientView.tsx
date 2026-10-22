@@ -43,6 +43,9 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   }, [isCurrentlyServingMe]);
 
   const message = useMemo(() => {
+    if (!tokenRecord) {
+      return t("tokenNotFound");
+    }
     if (isCurrentlyServingMe) {
       return t("proceedMessage");
     }
@@ -56,7 +59,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       return t("cancelledMessage");
     }
     return t("waitingMessage");
-  }, [isCurrentlyServingMe, status, t]);
+  }, [isCurrentlyServingMe, status, t, tokenRecord]);
 
   return (
     <section className="mx-auto max-w-5xl space-y-6">
@@ -111,7 +114,11 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               </p>
               <p className="mt-1 text-xl font-black text-ink">{patientName}</p>
               <div className="mt-2">
-                <StatusPill status={status} />
+                {tokenRecord ? (
+                  <StatusPill status={status} />
+                ) : (
+                  <p className="text-sm font-semibold text-rose-700">{t("tokenNotFound")}</p>
+                )}
               </div>
             </div>
           </div>
@@ -193,12 +200,14 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             </div>
 
             <div className="mt-3 flex items-baseline gap-3">
-              <span className="text-6xl font-black text-ink">{dynamicWait.waitMinutes}</span>
+              <span className="text-6xl font-black text-ink">{tokenRecord ? dynamicWait.waitMinutes : "—"}</span>
               <span className="text-xl font-bold text-slate-500">{t("min")}</span>
             </div>
 
             <p className="mt-2 text-sm font-semibold text-slate-600">
-              {status === "WAITING" ? (
+              {!tokenRecord ? (
+                <span className="font-bold text-rose-700">{t("tokenNotFound")}</span>
+              ) : status === "WAITING" ? (
                 <>
                   <span className="font-bold text-ink">{dynamicWait.patientsAhead}</span>{" "}
                   {dynamicWait.patientsAhead === 1 ? t("patientSingular") : t("patientPlural")}{" "}

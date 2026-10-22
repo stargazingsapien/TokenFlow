@@ -1,14 +1,14 @@
 "use client";
 
 import { estimateDynamicWait } from "@/lib/queue";
-import { playHospitalChime, speakCallAnnouncement } from "@/lib/alerts";
+import { playHospitalChime } from "@/lib/alerts";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export function DisplayView() {
   const { queue, stats, audioEnabled, setAudioEnabled } = useQueue();
-  const { t, language } = useI18n();
+  const { t } = useI18n();
 
   const [callBanner, setCallBanner] = useState<{
     tokenNumber: number;
@@ -40,14 +40,8 @@ export function DisplayView() {
       setCallBanner(null);
     }, 9000);
 
-    // Audio chime & speech
-    if (audioEnabled) {
-      playHospitalChime();
-      speakCallAnnouncement(queue.lastCalledToken, patientName, language);
-    }
-
     return () => clearTimeout(timer);
-  }, [queue.lastCalledToken, queue.lastCalledName, audioEnabled, language]);
+  }, [queue.lastCalledToken, queue.lastCalledName]);
 
   return (
     <section className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.7fr]">
