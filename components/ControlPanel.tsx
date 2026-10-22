@@ -156,28 +156,29 @@ export function ControlPanel() {
   }, [timerSeconds]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-[1400px] space-y-6">
       {/* Top Header & Role Switcher */}
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/80 bg-white/90 p-4 shadow-panel backdrop-blur sm:p-5">
+      <header className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500"></span>
-            <span className="text-xs font-black uppercase tracking-wider text-emerald-700">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800">
               {t("liveOpdQueue")}
             </span>
           </div>
-          <h1 className="mt-1 text-2xl font-black text-ink sm:text-3xl">{queue.clinicName}</h1>
-          <p className="text-sm font-semibold text-slate-500">
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{queue.clinicName}</h1>
+          <p className="mt-1 text-sm text-slate-500">
             {t("doctor")}: <span className="text-ink font-bold">{queue.doctorName}</span>
           </p>
         </div>
 
         {/* Role Mode Selector & Sound Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg bg-slate-100 p-1">
+          <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
             <button
+              aria-pressed={activeRole === "doctor"}
               onClick={() => setActiveRole("doctor")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-black transition ${
+              className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeRole === "doctor"
                   ? "bg-white text-ink shadow-sm"
                   : "text-slate-600 hover:text-ink"
@@ -186,8 +187,9 @@ export function ControlPanel() {
               {t("doctorConsole")}
             </button>
             <button
+              aria-pressed={activeRole === "receptionist"}
               onClick={() => setActiveRole("receptionist")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-black transition ${
+              className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeRole === "receptionist"
                   ? "bg-white text-ink shadow-sm"
                   : "text-slate-600 hover:text-ink"
@@ -196,14 +198,15 @@ export function ControlPanel() {
               {t("receptionistDesk")}
             </button>
             <button
+              aria-pressed={activeRole === "dual"}
               onClick={() => setActiveRole("dual")}
-              className={`hidden rounded-md px-3.5 py-1.5 text-xs font-black transition sm:block ${
+              className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeRole === "dual"
                   ? "bg-white text-ink shadow-sm"
                   : "text-slate-600 hover:text-ink"
               }`}
             >
-              ⚡ Dual View
+              Dual View
             </button>
           </div>
 
@@ -211,13 +214,13 @@ export function ControlPanel() {
           <button
             onClick={() => setAudioEnabled(!audioEnabled)}
             title={audioEnabled ? t("soundEnabled") : t("soundDisabled")}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
               audioEnabled
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 bg-slate-50 text-slate-500 line-through"
+                : "border-slate-200 bg-slate-50 text-slate-500"
             }`}
           >
-            <span>{audioEnabled ? "🔔" : "🔕"}</span>
+            <span className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
             <span className="hidden sm:inline">{audioEnabled ? t("soundAlerts") : "Muted"}</span>
           </button>
 
@@ -225,9 +228,9 @@ export function ControlPanel() {
           {!notificationsEnabled && (
             <button
               onClick={enableNotifications}
-              className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-100"
+              className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800 transition hover:bg-sky-100"
             >
-              <span>📩</span>
+              <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden="true" />
               <span className="hidden sm:inline">{t("enableNotifications")}</span>
             </button>
           )}
@@ -236,12 +239,12 @@ export function ControlPanel() {
 
       {/* OPD Live Overview Metric Cards */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {t("nowServing")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-emerald-700">
+            <span className="text-3xl font-bold tracking-tight text-slate-900">
               {servingToken ? `#${servingToken.tokenNumber}` : "--"}
             </span>
             {servingToken && (
@@ -255,12 +258,12 @@ export function ControlPanel() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/80 to-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-800">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {t("waiting")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-amber-600">{stats.waitingCount}</span>
+            <span className="text-3xl font-bold tracking-tight text-slate-900">{stats.waitingCount}</span>
             <span className="text-xs font-bold text-slate-500">
               ~{stats.waitingCount * stats.effectiveAvgMinutes} {t("min")}
             </span>
@@ -270,37 +273,37 @@ export function ControlPanel() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50/80 to-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-teal-800">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {t("completedCheckups")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-teal-700">{stats.completedCount}</span>
-            <span className="text-xs font-bold text-teal-600">✅ Done</span>
+            <span className="text-3xl font-bold tracking-tight text-slate-900">{stats.completedCount}</span>
+            <span className="text-xs font-semibold text-emerald-700">Completed</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Checked today</p>
+          <p className="mt-1 text-xs text-slate-500">Completed consultations</p>
         </div>
 
-        <div className="rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50/80 to-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-orange-800">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {t("absentSkipped")}
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-orange-600">{stats.skippedCount}</span>
-            <span className="text-xs font-bold text-slate-400">Can Recall</span>
+            <span className="text-3xl font-bold tracking-tight text-slate-900">{stats.skippedCount}</span>
+            <span className="text-xs font-semibold text-slate-500">Can recall</span>
           </div>
           <p className="mt-1 text-xs text-slate-500">Missed turn</p>
         </div>
 
-        <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wider text-indigo-800">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               {t("dynamicWait")}
             </p>
-            <span className="text-xs font-bold text-amber-500">⚡</span>
+            <span className="text-xs font-semibold text-slate-400">LIVE</span>
           </div>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-indigo-700">
+            <span className="text-3xl font-bold tracking-tight text-slate-900">
               {stats.effectiveAvgMinutes} <span className="text-sm font-semibold">{t("min")}</span>
             </span>
             {stats.actualAvgMinutes && (
@@ -315,8 +318,6 @@ export function ControlPanel() {
         </div>
       </section>
 
-      <WhatsAppSendPanel />
-
       {/* Main Workspace (Doctor Console, Reception Desk, or Dual) */}
       <div
         className={`grid gap-6 ${
@@ -327,10 +328,9 @@ export function ControlPanel() {
         {(activeRole === "doctor" || activeRole === "dual") && (
           <section className="space-y-5">
             {/* Active Consultation Hero Card */}
-            <div className="rounded-2xl border border-white/80 bg-white p-6 shadow-panel">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-emerald-100 p-2 text-xl text-emerald-700">🩺</span>
                   <div>
                     <h2 className="text-lg font-black text-ink">{t("doctorConsole")}</h2>
                     <p className="text-xs font-semibold text-slate-500">{t("inConsultation")}</p>
@@ -346,7 +346,7 @@ export function ControlPanel() {
                         : "bg-slate-100 text-slate-700"
                     }`}
                   >
-                    <span>⏱ {formattedTimer}</span>
+                    <span>{formattedTimer}</span>
                     {stats.isOvertime && (
                       <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[10px] text-white">
                         +{stats.overtimeMinutes}m
@@ -355,7 +355,7 @@ export function ControlPanel() {
                   </div>
                 ) : (
                   <span className="rounded-xl bg-emerald-50 px-3.5 py-1.5 text-xs font-black text-emerald-700 border border-emerald-200">
-                    🟢 {t("roomReady")}
+                    {t("roomReady")}
                   </span>
                 )}
               </div>
@@ -377,7 +377,7 @@ export function ControlPanel() {
                         </div>
                         {servingToken.patientPhone && (
                           <p className="mt-1 text-sm text-slate-300 font-mono">
-                            📞 {servingToken.patientPhone}
+                          {servingToken.patientPhone}
                           </p>
                         )}
                       </div>
@@ -391,14 +391,13 @@ export function ControlPanel() {
 
                     {stats.isOvertime && (
                       <div className="mt-4 rounded-lg bg-rose-500/20 border border-rose-400/40 p-2.5 text-xs font-semibold text-rose-200">
-                        ⚠️ {t("overtimeWarning")} (+{stats.overtimeMinutes} mins). Subsequent
+                        {t("overtimeWarning")} (+{stats.overtimeMinutes} mins). Subsequent
                         patients&apos; wait time has been dynamically updated!
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-8 text-center">
-                    <p className="text-4xl">🚪</p>
                     <h3 className="mt-2 text-lg font-black text-ink">{t("readyForNext")}</h3>
                     <p className="mt-1 text-xs text-slate-500">
                       {stats.waitingCount > 0
@@ -417,7 +416,7 @@ export function ControlPanel() {
                   disabled={!servingToken}
                   className="flex flex-col items-center justify-center rounded-xl bg-emerald-600 px-4 py-4 text-center font-black text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 >
-                  <span className="text-lg">✅ {t("checkupCompleted")}</span>
+                  <span className="text-base">{t("checkupCompleted")}</span>
                   <span className="text-[11px] font-semibold opacity-90">
                     Finish & clear room
                   </span>
@@ -429,7 +428,7 @@ export function ControlPanel() {
                   disabled={stats.waitingCount === 0}
                   className="flex flex-col items-center justify-center rounded-xl bg-ink px-4 py-4 text-center font-black text-white shadow-sm transition hover:bg-slatepanel active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 >
-                  <span className="text-lg">🔔 {t("callNextPatient")}</span>
+                  <span className="text-base">{t("callNextPatient")}</span>
                   <span className="text-[11px] font-semibold opacity-90">
                     {stats.waitingCount > 0
                       ? `Call #${stats.waitingTokens[0]?.tokenNumber} · ${stats.waitingTokens[0]?.patientName}`
@@ -443,7 +442,7 @@ export function ControlPanel() {
                   disabled={!servingToken}
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-orange-200 bg-orange-50 px-4 py-4 text-center font-black text-orange-700 transition hover:bg-orange-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                 >
-                  <span className="text-lg">⏭️ {t("skipAbsent")}</span>
+                  <span className="text-base">{t("skipAbsent")}</span>
                   <span className="text-[11px] font-semibold opacity-80">
                     Patient not at door
                   </span>
@@ -451,18 +450,18 @@ export function ControlPanel() {
               </div>
 
               <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>⌨️ {t("clickerKeys")}</span>
+                <span>{t("clickerKeys")}</span>
                 <span className="font-semibold text-emerald-700">
-                  ⚡ Auto-sync with Reception Desk
+                  Synced with reception
                 </span>
               </div>
             </div>
 
             {/* Upcoming Patients Outside Door */}
-            <div className="rounded-2xl border border-white/80 bg-white p-5 shadow-panel">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-black text-ink">
-                  👥 {t("upcoming")} ({stats.waitingCount})
+                  {t("upcoming")} ({stats.waitingCount})
                 </h3>
                 <span className="text-xs font-bold text-slate-500">
                   {t("dynamicWaitBadge")}
@@ -500,14 +499,14 @@ export function ControlPanel() {
                             onClick={() => callSpecific(token.tokenNumber)}
                             className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
                           >
-                            Call Now 🔔
+                            Call now
                           </button>
                           <button
                             onClick={() => skip(token.tokenNumber)}
                             title="Mark Absent"
                             className="rounded-lg border border-slate-200 p-1.5 text-xs text-slate-500 hover:bg-orange-50 hover:text-orange-700"
                           >
-                            ⏭️
+                            Skip
                           </button>
                         </div>
                       </div>
@@ -523,10 +522,9 @@ export function ControlPanel() {
         {(activeRole === "receptionist" || activeRole === "dual") && (
           <section className="space-y-5">
             {/* Issue Token Form */}
-            <div className="rounded-2xl border border-white/80 bg-white p-6 shadow-panel">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-indigo-100 p-2 text-xl text-indigo-700">📋</span>
                   <div>
                     <h2 className="text-lg font-black text-ink">{t("issueNewToken")}</h2>
                     <p className="text-xs font-semibold text-slate-500">
@@ -539,13 +537,13 @@ export function ControlPanel() {
                   onClick={handleQuickIssue}
                   className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-black text-ink transition hover:bg-slate-100"
                 >
-                  ⚡ {t("quickIssue")}
+                  {t("quickIssue")}
                 </button>
               </div>
 
               {lastIssuedMessage && (
                 <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-black text-emerald-800 animate-fadeIn">
-                  🎉 {t("tokenIssuedSuccess")}: {lastIssuedMessage}
+                  {t("tokenIssuedSuccess")}: {lastIssuedMessage}
                 </div>
               )}
 
@@ -586,14 +584,24 @@ export function ControlPanel() {
                     disabled={stats.waitingCount === 0}
                     className="rounded-xl bg-mint px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    🔔 {t("callNextPatient")}
+                    {t("callNextPatient")}
                   </button>
                 </div>
               </form>
             </div>
 
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-slate-800">
+                <span>Patient messaging</span>
+                <span className="text-sm font-medium text-slate-500">WhatsApp · optional</span>
+              </summary>
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <WhatsAppSendPanel />
+              </div>
+            </details>
+
             {/* Live OPD Queue Manager & Action List */}
-            <div className="rounded-2xl border border-white/80 bg-white p-5 shadow-panel">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <h3 className="text-base font-black text-ink">{t("liveOpdQueue")}</h3>
 
@@ -671,7 +679,7 @@ export function ControlPanel() {
                               <StatusPill status={token.status} />
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                              {token.patientPhone && <span>📞 {token.patientPhone}</span>}
+                              {token.patientPhone && <span>{token.patientPhone}</span>}
                               {token.status === "WAITING" && (
                                 <span className="font-semibold text-amber-600">
                                   ~{est.waitMinutes}m wait ({est.patientsAhead} ahead)
@@ -694,13 +702,13 @@ export function ControlPanel() {
                                 onClick={() => callSpecific(token.tokenNumber)}
                                 className="rounded-md bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-black text-emerald-700 hover:bg-emerald-100"
                               >
-                                Call 🔔
+                                Call
                               </button>
                               <button
                                 onClick={() => skip(token.tokenNumber)}
                                 className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700 hover:bg-orange-100"
                               >
-                                Skip ⏭️
+                                Skip
                               </button>
                               {/* Mistake Cancel Button */}
                               <button
@@ -708,7 +716,7 @@ export function ControlPanel() {
                                 title="Cancel Token (Mistake)"
                                 className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100"
                               >
-                                ✕ Cancel
+                                Cancel
                               </button>
                             </>
                           )}
@@ -727,7 +735,7 @@ export function ControlPanel() {
                               onClick={completeCheckup}
                               className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-black text-white hover:bg-emerald-700"
                             >
-                              ✅ Complete
+                              Complete
                             </button>
                           )}
                         </div>
@@ -739,9 +747,9 @@ export function ControlPanel() {
             </div>
 
             {/* Clinic Setup & Reset Accordion */}
-            <details className="group rounded-2xl border border-white/80 bg-white p-5 shadow-panel">
+            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <summary className="flex cursor-pointer items-center justify-between font-black text-ink text-sm">
-                <span>⚙️ {t("clinicSetup")}</span>
+                <span>{t("clinicSetup")}</span>
                 <span className="text-xs text-slate-400 group-open:rotate-180 transition">▼</span>
               </summary>
 

@@ -141,13 +141,12 @@ export function WhatsAppSendPanel() {
   };
 
   return (
-    <div className="rounded-2xl border border-white/80 bg-white p-6 shadow-panel">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
         <div className="flex items-center gap-2">
-          <span className="rounded-lg bg-emerald-100 p-2 text-xl text-emerald-700">💬</span>
           <div>
-            <h2 className="text-lg font-black text-ink">WhatsApp message</h2>
-            <p className="text-xs font-semibold text-slate-500">
+            <h2 className="text-base font-semibold text-ink">WhatsApp message</h2>
+            <p className="mt-1 text-xs text-slate-500">
               Pick a template, fill variables, then send (works in mock until Meta approves)
             </p>
           </div>

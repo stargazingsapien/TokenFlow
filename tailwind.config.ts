@@ -5,15 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#18212f",
-        slatepanel: "#26384f",
-        mint: "#16a085",
-        coral: "#f05a5a",
-        amberline: "#f2b84b",
+        ink: "#172536",
+        slatepanel: "#24384c",
+        mint: "#147d6b",
+        coral: "#b54745",
+        amberline: "#d9a441",
         cloud: "#f6f8fb"
       },
       boxShadow: {
-        panel: "0 18px 50px rgba(24, 33, 47, 0.12)"
+        panel: "0 12px 32px rgba(23, 37, 54, 0.08)"
       },
       keyframes: {
         fadeIn: {

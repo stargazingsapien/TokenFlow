@@ -66,7 +66,6 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       {/* Read-Only Notice Badge */}
       <div className="flex items-center justify-between rounded-xl border border-blue-200/60 bg-blue-50/80 px-4 py-2.5 text-xs font-semibold text-blue-800">
         <span className="flex items-center gap-1.5">
-          <span>🔒</span>
           <span>{t("patientReadOnlyNotice")}</span>
         </span>
         <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
@@ -78,7 +77,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         {/* Left Column: Token Selector & Clinic Info */}
         <div className="space-y-5">
-          <div className="rounded-2xl border border-white/80 bg-white p-6 shadow-panel">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <span className="text-xs font-bold uppercase tracking-widest text-mint">
               {t("patientTracker")}
             </span>
@@ -124,7 +123,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
           </div>
 
           {/* OPD Queue Status Summary Card */}
-          <div className="rounded-2xl border border-white/80 bg-white p-5 shadow-panel">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               {t("liveOpdQueue")} Summary
             </h3>
@@ -145,12 +144,11 @@ export function PatientView({ initialToken }: { initialToken: number }) {
         <div className="space-y-5">
           {/* Turn Calling Banner (Big Visual Attention Grabber) */}
           {isCurrentlyServingMe ? (
-            <div className="rounded-2xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white shadow-lg animate-bounce">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950 shadow-sm">
               <div className="flex items-center gap-3">
-                <span className="text-4xl">🔔</span>
                 <div>
                   <h2 className="text-2xl font-black">{t("proceedMessage")}</h2>
-                  <p className="text-sm font-semibold opacity-90">
+                  <p className="text-sm font-semibold text-emerald-800">
                     Token #{tokenNumber} · {patientName}
                   </p>
                 </div>
@@ -160,7 +158,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
 
           {/* Dual Cards: Now Serving vs Your Token */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-gradient-to-br from-slatepanel to-ink p-6 text-white shadow-panel">
+            <div className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm">
               <p className="text-xs font-bold uppercase tracking-widest text-amberline">
                 {t("nowServing")}
               </p>
@@ -176,7 +174,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               className={`rounded-2xl border p-6 shadow-panel ${
                 isCurrentlyServingMe
                   ? "border-emerald-300 bg-emerald-50 text-emerald-950"
-                  : "border-white/80 bg-white text-ink"
+                  : "border-slate-200 bg-white text-ink"
               }`}
             >
               <p className="text-xs font-bold uppercase tracking-widest opacity-70">
@@ -188,13 +186,12 @@ export function PatientView({ initialToken }: { initialToken: number }) {
           </div>
 
           {/* Dynamic Estimated Wait Time Card */}
-          <div className="rounded-2xl border border-white/80 bg-white p-6 shadow-panel">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
                 {t("dynamicWait")}
               </p>
               <span className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                <span>⚡</span>
                 <span>Auto-Updated</span>
               </span>
             </div>
@@ -225,7 +222,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             {/* Dynamic Overtime Notice */}
             {dynamicWait.isOvertime && status === "WAITING" && (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs font-medium text-amber-900">
-                ℹ️ {t("dynamicWaitTooltip")}
+                {t("dynamicWaitTooltip")}
               </div>
             )}
           </div>
@@ -253,7 +250,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                     })
                   : t("syncing")}
               </span>
-              <span>🔒 Read-Only</span>
+              <span>Read-only</span>
             </div>
           </div>
         </div>
