@@ -246,14 +246,14 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   }, [isCurrentlyServingMe, selectedTokenNumber, status, t, tokenRecord, trackerStatus]);
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="mx-auto min-w-0 max-w-5xl space-y-4 sm:space-y-6">
       {showNotificationPrompt && trackerData && tokenRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="presentation">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="patient-notification-title"
-            className="relative w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl sm:p-8"
+            className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-white/70 bg-white p-5 shadow-2xl sm:p-8"
           >
             <button
               type="button"
@@ -309,10 +309,10 @@ export function PatientView({ initialToken }: { initialToken: number }) {
         </span>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+      <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[0.8fr_1.2fr]">
         {/* Left Column: Token Selector & Clinic Info */}
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <span className="text-xs font-bold uppercase tracking-widest text-mint">
               {t("patientTracker")}
             </span>
@@ -421,12 +421,12 @@ export function PatientView({ initialToken }: { initialToken: number }) {
           ) : null}
 
           {/* Dual Cards: Now Serving vs Your Token */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 sm:gap-4">
             <div className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm">
               <p className="text-xs font-bold uppercase tracking-widest text-amberline">
                 {t("nowServing")}
               </p>
-              <p className="mt-2 text-6xl font-black leading-none">
+              <p className="mt-2 break-all text-5xl font-black leading-none sm:text-6xl">
                 #{servingTokenNumber || "--"}
               </p>
               <p className="mt-3 truncate text-sm font-semibold text-slate-300">
@@ -450,7 +450,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               <p className="text-xs font-bold uppercase tracking-widest opacity-70">
                 {t("yourToken")}
               </p>
-              <p className="mt-2 text-6xl font-black leading-none">#{selectedTokenNumber || "—"}</p>
+              <p className="mt-2 break-all text-5xl font-black leading-none sm:text-6xl">#{selectedTokenNumber || "—"}</p>
               <p className="mt-3 truncate text-sm font-bold opacity-80">{patientName || t("patientEnterToken")}</p>
             </div>
           </div>
@@ -467,7 +467,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             </div>
 
             <div className="mt-3 flex items-baseline gap-3">
-              <span className="text-6xl font-black text-ink">{tokenRecord ? dynamicWait.waitMinutes : "—"}</span>
+              <span className="text-5xl font-black text-ink sm:text-6xl">{tokenRecord ? dynamicWait.waitMinutes : "—"}</span>
               <span className="text-xl font-bold text-slate-500">{t("min")}</span>
             </div>
 

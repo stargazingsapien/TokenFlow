@@ -24,8 +24,8 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen px-5 py-6 sm:px-8">
-      <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col justify-center gap-12">
+    <main className="min-h-screen px-4 py-5 sm:px-8 sm:py-6">
+      <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col justify-center gap-8 sm:gap-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3 text-lg font-black tracking-tight text-ink">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink text-lg text-white">T</span>
@@ -38,7 +38,7 @@ export default function Home() {
           <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-emerald-800">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />{t("homeKicker")}
           </p>
-          <h1 className="mt-6 text-5xl font-black leading-[1.05] tracking-tight text-ink sm:text-7xl">
+          <h1 className="mt-6 text-4xl font-black leading-[1.05] tracking-tight text-ink sm:text-7xl">
             {t("homeTitle")}
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">

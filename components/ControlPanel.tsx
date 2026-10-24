@@ -196,7 +196,7 @@ export function ControlPanel() {
     : "";
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
+    <div className="mx-auto min-w-0 max-w-[1400px] space-y-4 sm:space-y-6">
       {/* Top Header & Role Switcher */}
       <header className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div>
@@ -381,7 +381,7 @@ export function ControlPanel() {
         {(activeRole === "doctor" || activeRole === "dual") && (
           <section className="space-y-5">
             {/* Active Consultation Hero Card */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2">
                   <div>
@@ -423,7 +423,7 @@ export function ControlPanel() {
                           {t("nowServing")}
                         </span>
                         <div className="mt-1 flex items-baseline gap-3">
-                          <span className="text-6xl font-black">#{servingToken.tokenNumber}</span>
+                          <span className="break-all text-5xl font-black sm:text-6xl">#{servingToken.tokenNumber}</span>
                           <span className="text-2xl font-bold text-white/90">
                             {servingToken.patientName}
                           </span>

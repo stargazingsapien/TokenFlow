@@ -45,7 +45,7 @@ export function DisplayView() {
   }, [queue.lastCalledToken, queue.lastCalledName]);
 
   return (
-    <section className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1600px] gap-5 lg:grid-cols-[1.3fr_0.7fr]">
+    <section className="mx-auto grid min-h-[calc(100vh-1.5rem)] min-w-0 max-w-[1600px] gap-3 sm:gap-5 lg:grid-cols-[1.3fr_0.7fr]">
       {/* Call Announcement Banner Overlay */}
       {callBanner && (
         <div role="status" className="fixed inset-x-4 top-20 z-50 mx-auto max-w-3xl animate-fadeIn rounded-2xl border border-amber-300 bg-slate-900 p-6 text-white shadow-2xl sm:inset-x-auto sm:w-full">
@@ -55,7 +55,7 @@ export function DisplayView() {
                 <p className="text-xs font-black uppercase tracking-widest text-amberline">
                   {t("nowCalling")}
                 </p>
-                <h2 className="mt-1 text-3xl font-black sm:text-5xl">
+                <h2 className="mt-1 break-words text-2xl font-black sm:text-5xl">
                   #{callBanner.tokenNumber} · {callBanner.patientName}
                 </h2>
                 <p className="mt-1 text-sm text-slate-300">
@@ -74,7 +74,7 @@ export function DisplayView() {
       )}
 
       {/* Main Waiting Room Display Column */}
-      <div className="flex flex-col justify-between rounded-3xl bg-slate-900 p-8 text-white shadow-xl sm:p-12">
+      <div className="flex min-w-0 flex-col justify-between rounded-3xl bg-slate-900 p-4 text-white shadow-xl sm:p-8 lg:p-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-base font-bold uppercase tracking-[0.25em] text-amberline">
@@ -115,11 +115,11 @@ export function DisplayView() {
         <div className="my-10 text-center">
           {servingToken ? (
             <div className="space-y-4">
-              <p className="text-[8rem] font-black leading-none tracking-tight sm:text-[13rem]">
+              <p className="break-all text-[clamp(4.5rem,24vw,8rem)] font-black leading-none tracking-tight sm:text-[13rem]">
                 #{servingToken.tokenNumber}
               </p>
               <div className="inline-block rounded-2xl bg-white/10 px-6 py-3 backdrop-blur-md">
-                <p className="text-2xl font-black text-amberline sm:text-4xl">
+                <p className="break-words text-xl font-black text-amberline sm:text-4xl">
                   {servingToken.patientName}
                 </p>
               </div>
@@ -148,7 +148,7 @@ export function DisplayView() {
       </div>
 
       {/* Right Column: Upcoming Waiting Tokens List */}
-      <aside className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <aside className="flex min-w-0 flex-col justify-between rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div>
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <h2 className="text-2xl font-black text-ink">{t("upcoming")}</h2>

@@ -22,11 +22,11 @@ export function QueueChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <QueueProvider>
-      <main className={`min-h-screen ${isDisplayScreen ? "px-4 py-3" : "px-4 py-5 sm:px-8"}`}>
+      <main className={`min-h-screen min-w-0 ${isDisplayScreen ? "px-3 py-3 sm:px-4" : "px-3 py-4 sm:px-8 sm:py-5"}`}>
         {!isDisplayScreen && (
           <nav
             aria-label="Main navigation"
-            className="mx-auto mb-8 flex max-w-[1400px] flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-4"
+            className="mx-auto mb-6 flex max-w-[1400px] flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 sm:mb-8 sm:gap-4"
           >
             <Link href="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-ink">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">
@@ -39,8 +39,8 @@ export function QueueChrome({ children }: { children: React.ReactNode }) {
                 </span>
               </span>
             </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+              <div className="flex w-full gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto">
                 {links.map((link) => {
                   const isActive = pathname === link.href.split("?")[0];
                   return (
@@ -48,7 +48,7 @@ export function QueueChrome({ children }: { children: React.ReactNode }) {
                       key={link.href}
                       href={link.href}
                       aria-current={isActive ? "page" : undefined}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`flex-1 rounded-lg px-2 py-2 text-center text-xs font-semibold transition sm:flex-none sm:px-3 sm:text-sm ${
                         isActive
                           ? "bg-slate-100 text-ink"
                           : "text-slate-500 hover:bg-slate-50 hover:text-ink"
