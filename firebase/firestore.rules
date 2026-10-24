@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The public client can only subscribe to this opaque queue change signal.
+    match /clinics/{clinicId}/public/queueSignal {
+      allow get: if true;
+      allow list, create, update, delete: if false;
+    }
+
+    // Queue contents and patient details are server-only via Firebase Admin.
+    match /clinics/{clinicId}/private/queueState {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

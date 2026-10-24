@@ -1,33 +1,126 @@
 "use client";
 
-import { estimateDynamicWait } from "@/lib/queue";
+import { estimateDynamicWait, TokenRecord } from "@/lib/queue";
+import { isQueueSyncConfigured, publicQueueSignalRef } from "@/lib/firebase";
+import { onSnapshot } from "firebase/firestore";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { StatusPill } from "./StatusPill";
 import { useEffect, useMemo, useState } from "react";
 
+type PatientTrackerData = {
+  clinicName: string;
+  doctorName: string;
+  updatedAt: string;
+  waitingCount: number;
+  completedCount: number;
+  currentTokenNumber: number;
+  token: TokenRecord;
+  waitMinutes: number;
+  patientsAhead: number;
+  isOvertime: boolean;
+};
+
 export function PatientView({ initialToken }: { initialToken: number }) {
   const { queue, stats, isReady } = useQueue();
   const { t } = useI18n();
-  const [tokenNumber, setTokenNumber] = useState<number>(initialToken || 1);
+  const [tokenNumber, setTokenNumber] = useState<number | "">(initialToken || "");
+  const [accessKey, setAccessKey] = useState("");
+  const [trackerData, setTrackerData] = useState<PatientTrackerData | null>(null);
+  const [trackerStatus, setTrackerStatus] = useState<"local" | "connecting" | "live" | "offline" | "private-link">(
+    isQueueSyncConfigured ? "connecting" : "local"
+  );
+  const selectedTokenNumber = tokenNumber === "" ? 0 : tokenNumber;
+
+  useEffect(() => {
+    setAccessKey(decodeURIComponent(window.location.hash.slice(1)));
+  }, []);
+
+  useEffect(() => {
+    if (!isQueueSyncConfigured) {
+      setTrackerStatus("local");
+      return;
+    }
+    if (!selectedTokenNumber || !accessKey) {
+      setTrackerData(null);
+      setTrackerStatus("private-link");
+      return;
+    }
+
+    let active = true;
+    const refreshTracker = async () => {
+      if (active) setTrackerStatus("connecting");
+      try {
+        const response = await fetch("/api/queue/public", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({ tokenNumber: selectedTokenNumber, accessKey })
+        });
+        if (!response.ok) {
+          if (active) {
+            setTrackerData(null);
+            setTrackerStatus(response.status === 404 ? "private-link" : "offline");
+          }
+          return;
+        }
+        const next = (await response.json()) as PatientTrackerData;
+        if (active) {
+          setTrackerData(next);
+          setTrackerStatus("live");
+        }
+      } catch {
+        if (active) {
+          setTrackerData(null);
+          setTrackerStatus("offline");
+        }
+      }
+    };
+
+    void refreshTracker();
+    const unsubscribeRealtime = publicQueueSignalRef
+      ? onSnapshot(
+          publicQueueSignalRef,
+          () => void refreshTracker(),
+          () => {
+            if (active) setTrackerStatus("offline");
+          }
+        )
+      : null;
+
+    return () => {
+      active = false;
+      unsubscribeRealtime?.();
+    };
+  }, [accessKey, selectedTokenNumber]);
 
   // Find the patient's specific token record
   const tokenRecord = useMemo(
-    () => queue.tokens.find((item) => item.tokenNumber === tokenNumber),
-    [queue.tokens, tokenNumber]
+    () => isQueueSyncConfigured
+      ? trackerData?.token
+      : queue.tokens.find((item) => item.tokenNumber === selectedTokenNumber),
+    [queue.tokens, selectedTokenNumber, trackerData]
   );
 
   const status = tokenRecord?.status ?? "WAITING";
-  const patientName = tokenRecord?.patientName ?? `Patient #${tokenNumber}`;
+  const patientName = tokenRecord?.patientName ?? "";
 
   // Dynamic wait time calculation for this patient
-  const dynamicWait = useMemo(
-    () => estimateDynamicWait(queue, tokenNumber),
-    [queue, tokenNumber]
+  const localDynamicWait = useMemo(
+    () => estimateDynamicWait(queue, selectedTokenNumber),
+    [queue, selectedTokenNumber]
   );
-
-  const servingToken = stats.servingToken;
-  const isCurrentlyServingMe = servingToken?.tokenNumber === tokenNumber;
+  const dynamicWait = isQueueSyncConfigured
+    ? trackerData ?? { waitMinutes: 0, patientsAhead: 0, isOvertime: false }
+    : localDynamicWait;
+  const servingTokenNumber = isQueueSyncConfigured
+    ? trackerData?.currentTokenNumber ?? 0
+    : stats.servingToken?.tokenNumber ?? 0;
+  const isCurrentlyServingMe = Boolean(selectedTokenNumber && servingTokenNumber === selectedTokenNumber);
+  const waitingCount = isQueueSyncConfigured ? trackerData?.waitingCount ?? 0 : stats.waitingCount;
+  const completedCount = isQueueSyncConfigured ? trackerData?.completedCount ?? 0 : stats.completedCount;
+  const clinicName = trackerData?.clinicName ?? queue.clinicName;
+  const doctorName = trackerData?.doctorName ?? queue.doctorName;
 
   // Sound alert on mobile when patient's turn arrives!
   useEffect(() => {
@@ -43,6 +136,18 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   }, [isCurrentlyServingMe]);
 
   const message = useMemo(() => {
+    if (isQueueSyncConfigured && trackerStatus === "private-link") {
+      return t("patientPrivateLink");
+    }
+    if (isQueueSyncConfigured && trackerStatus === "offline") {
+      return t("syncOffline");
+    }
+    if (isQueueSyncConfigured && trackerStatus === "connecting") {
+      return t("syncing");
+    }
+    if (!selectedTokenNumber) {
+      return t("patientEnterToken");
+    }
     if (!tokenRecord) {
       return t("tokenNotFound");
     }
@@ -59,7 +164,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       return t("cancelledMessage");
     }
     return t("waitingMessage");
-  }, [isCurrentlyServingMe, status, t, tokenRecord]);
+  }, [isCurrentlyServingMe, selectedTokenNumber, status, t, tokenRecord, trackerStatus]);
 
   return (
     <section className="mx-auto max-w-5xl space-y-6">
@@ -70,7 +175,15 @@ export function PatientView({ initialToken }: { initialToken: number }) {
         </span>
         <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Live Synced
+          {trackerStatus === "live"
+            ? t("liveSynced")
+            : trackerStatus === "connecting"
+              ? t("syncing")
+              : trackerStatus === "offline"
+                ? t("syncOffline")
+                : trackerStatus === "private-link"
+                  ? t("patientPrivateLinkShort")
+                  : t("deviceOnly")}
         </span>
       </div>
 
@@ -81,9 +194,9 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             <span className="text-xs font-bold uppercase tracking-widest text-mint">
               {t("patientTracker")}
             </span>
-            <h1 className="mt-2 text-3xl font-black text-ink">{queue.clinicName}</h1>
+            <h1 className="mt-2 text-3xl font-black text-ink">{clinicName}</h1>
             <p className="mt-1 text-sm font-semibold text-slate-500">
-              {t("doctor")}: <span className="font-bold text-ink">{queue.doctorName}</span>
+              {t("doctor")}: <span className="font-bold text-ink">{doctorName}</span>
             </p>
 
             {/* Token Selector (Read-Only Search / Entry) */}
@@ -97,7 +210,12 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                   type="number"
                   min={1}
                   value={tokenNumber}
-                  onChange={(e) => setTokenNumber(Math.max(1, Number(e.target.value)))}
+                  disabled={isQueueSyncConfigured}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setTokenNumber(value ? Math.max(1, Number(value)) : "");
+                  }}
+                  placeholder="—"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-2xl font-black text-ink shadow-sm focus:border-mint focus:outline-none"
                 />
               </div>
@@ -111,10 +229,14 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 {t("patientName")}
               </p>
-              <p className="mt-1 text-xl font-black text-ink">{patientName}</p>
+              <p className="mt-1 text-xl font-black text-ink">{patientName || (isQueueSyncConfigured ? t("patientPrivateLinkShort") : t("patientEnterToken"))}</p>
               <div className="mt-2">
                 {tokenRecord ? (
                   <StatusPill status={status} />
+                ) : isQueueSyncConfigured ? (
+                  <p className="text-sm font-medium text-slate-500">{t("patientPrivateLink")}</p>
+                ) : !selectedTokenNumber ? (
+                  <p className="text-sm font-medium text-slate-500">{t("patientEnterToken")}</p>
                 ) : (
                   <p className="text-sm font-semibold text-rose-700">{t("tokenNotFound")}</p>
                 )}
@@ -130,11 +252,11 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             <div className="mt-3 grid grid-cols-2 gap-3 text-center">
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs font-semibold text-slate-500">{t("waiting")}</p>
-                <p className="text-2xl font-black text-ink">{stats.waitingCount}</p>
+                <p className="text-2xl font-black text-ink">{waitingCount}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs font-semibold text-slate-500">{t("completedCheckups")}</p>
-                <p className="text-2xl font-black text-emerald-700">{stats.completedCount}</p>
+                <p className="text-2xl font-black text-emerald-700">{completedCount}</p>
               </div>
             </div>
           </div>
@@ -149,7 +271,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                 <div>
                   <h2 className="text-2xl font-black">{t("proceedMessage")}</h2>
                   <p className="text-sm font-semibold text-emerald-800">
-                    Token #{tokenNumber} · {patientName}
+                    Token #{selectedTokenNumber} · {patientName}
                   </p>
                 </div>
               </div>
@@ -163,10 +285,16 @@ export function PatientView({ initialToken }: { initialToken: number }) {
                 {t("nowServing")}
               </p>
               <p className="mt-2 text-6xl font-black leading-none">
-                #{servingToken?.tokenNumber ?? "--"}
+                #{servingTokenNumber || "--"}
               </p>
               <p className="mt-3 truncate text-sm font-semibold text-slate-300">
-                {servingToken?.patientName ?? t("roomReady")}
+                {servingTokenNumber
+                  ? isCurrentlyServingMe
+                    ? patientName
+                    : isQueueSyncConfigured
+                      ? t("inConsultation")
+                      : stats.servingToken?.patientName
+                  : t("roomReady")}
               </p>
             </div>
 
@@ -180,8 +308,8 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               <p className="text-xs font-bold uppercase tracking-widest opacity-70">
                 {t("yourToken")}
               </p>
-              <p className="mt-2 text-6xl font-black leading-none">#{tokenNumber}</p>
-              <p className="mt-3 truncate text-sm font-bold opacity-80">{patientName}</p>
+              <p className="mt-2 text-6xl font-black leading-none">#{selectedTokenNumber || "—"}</p>
+              <p className="mt-3 truncate text-sm font-bold opacity-80">{patientName || t("patientEnterToken")}</p>
             </div>
           </div>
 
@@ -202,7 +330,11 @@ export function PatientView({ initialToken }: { initialToken: number }) {
             </div>
 
             <p className="mt-2 text-sm font-semibold text-slate-600">
-              {!tokenRecord ? (
+              {!selectedTokenNumber ? (
+                <span className="font-semibold text-slate-500">{t("patientEnterToken")}</span>
+              ) : isQueueSyncConfigured && !tokenRecord ? (
+                <span className="font-semibold text-slate-500">{t("patientPrivateLink")}</span>
+              ) : !tokenRecord ? (
                 <span className="font-bold text-rose-700">{t("tokenNotFound")}</span>
               ) : status === "WAITING" ? (
                 <>
@@ -244,7 +376,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               <span>
                 {t("lastUpdated")}:{" "}
                 {isReady
-                  ? new Date(queue.updatedAt).toLocaleTimeString([], {
+                  ? new Date(trackerData?.updatedAt ?? queue.updatedAt).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit"
                     })

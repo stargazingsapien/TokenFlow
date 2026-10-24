@@ -66,6 +66,15 @@ export function speakCallAnnouncement(
     utterance.rate = 0.95;
     utterance.pitch = 1.0;
 
+    // Select the installed Indian-language voice when the browser provides one.
+    // Browsers without that voice still receive the correct script and language tag.
+    const languagePrefix = voiceLang.toLowerCase().split("-")[0];
+    const availableVoices = window.speechSynthesis.getVoices();
+    utterance.voice =
+      availableVoices.find((voice) => voice.lang.toLowerCase() === voiceLang.toLowerCase()) ??
+      availableVoices.find((voice) => voice.lang.toLowerCase().startsWith(`${languagePrefix}-`)) ??
+      null;
+
     // Fallback if specific language voice not found
     window.speechSynthesis.speak(utterance);
   } catch (err) {

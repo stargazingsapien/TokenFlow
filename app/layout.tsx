@@ -4,7 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TokenFlow",
-  description: "Live OPD queue and token tracker"
+  description: "Live OPD queue and token tracker",
+  referrer: "no-referrer"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

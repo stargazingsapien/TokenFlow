@@ -1,11 +1,10 @@
-"use client";
-
 export type TokenStatus = "WAITING" | "SERVING" | "COMPLETED" | "SKIPPED" | "CANCELLED";
 
 export type TokenRecord = {
   tokenNumber: number;
   patientName: string;
   patientPhone?: string;
+  patientAccessKey?: string;
   status: TokenStatus;
   issuedAt: string;
   servedAt?: string;
@@ -60,6 +59,7 @@ export const defaultQueueState: QueueState = {
 
 export function loadQueue(): QueueState {
   if (typeof window === "undefined") return defaultQueueState;
+  clearLegacyQueueCookie();
 
   const storage = getStorage();
   let rawState: QueueState | null = null;
@@ -76,7 +76,7 @@ export function loadQueue(): QueueState {
   }
 
   if (!rawState) {
-    rawState = memoryQueue ?? loadCookieQueue() ?? defaultQueueState;
+    rawState = memoryQueue ?? defaultQueueState;
   }
 
   // Defensively ensure backwards compatibility with older stored data
@@ -100,7 +100,6 @@ export function saveQueue(state: QueueState) {
   } catch {
     // Keep the in-memory queue usable when browser storage is full or unavailable.
   }
-  saveCookieQueue(state);
 }
 
 export function createQueueChannel(onMessage: (state: QueueState) => void) {
@@ -123,7 +122,8 @@ export function createQueueChannel(onMessage: (state: QueueState) => void) {
 export function issueToken(
   state: QueueState,
   patientName?: string,
-  patientPhone?: string
+  patientPhone?: string,
+  patientAccessKey?: string
 ): QueueState {
   const nextToken = state.totalIssued + 1;
   const cleanName =
@@ -139,6 +139,7 @@ export function issueToken(
         tokenNumber: nextToken,
         patientName: cleanName,
         patientPhone: cleanPhone,
+        patientAccessKey,
         status: "WAITING",
         issuedAt: new Date().toISOString()
       }
@@ -466,23 +467,10 @@ function getStorage() {
   }
 }
 
-function loadCookieQueue() {
+function clearLegacyQueueCookie() {
   try {
-    const cookie = document.cookie
-      .split("; ")
-      .find((item) => item.startsWith(`${STORAGE_KEY}=`))
-      ?.split("=")[1];
-
-    return cookie ? ({ ...defaultQueueState, ...JSON.parse(decodeURIComponent(cookie)) } as QueueState) : null;
+    document.cookie = `${STORAGE_KEY}=; path=/; max-age=0; SameSite=Lax`;
   } catch {
-    return null;
-  }
-}
-
-function saveCookieQueue(state: QueueState) {
-  try {
-    document.cookie = `${STORAGE_KEY}=${encodeURIComponent(JSON.stringify(state))}; path=/; max-age=86400; SameSite=Lax`;
-  } catch {
-    // Storage is best-effort for a local pilot.
+    // Cookie cleanup is best-effort; queue state no longer uses cookies.
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { estimateDynamicWait } from "@/lib/queue";
-import { playHospitalChime } from "@/lib/alerts";
+import { playHospitalChime, speakCallAnnouncement } from "@/lib/alerts";
 import { LanguageSwitcher } from "./I18nProvider";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export function DisplayView() {
   const { queue, stats, audioEnabled, setAudioEnabled } = useQueue();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   const [callBanner, setCallBanner] = useState<{
     tokenNumber: number;
@@ -98,6 +98,15 @@ export function DisplayView() {
               className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/20"
             >
               <span>{audioEnabled ? "Sound on" : "Sound muted"}</span>
+            </button>
+            <button
+              onClick={() => {
+                playHospitalChime();
+                speakCallAnnouncement(queue.currentToken || 1, t("audioTestPatient"), language);
+              }}
+              className="rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+            >
+              {t("testAudio")}
             </button>
           </div>
         </div>

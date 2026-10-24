@@ -5,6 +5,8 @@ import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { StatusPill } from "./StatusPill";
 import { WhatsAppSendPanel } from "./WhatsAppSendPanel";
+import { isQueueSyncConfigured } from "@/lib/firebase";
+import { playHospitalChime, speakCallAnnouncement } from "@/lib/alerts";
 import { useEffect, useMemo, useState } from "react";
 
 const clickerKeys = new Set([" ", "Enter", "ArrowRight", "n", "N"]);
@@ -12,6 +14,7 @@ const clickerKeys = new Set([" ", "Enter", "ArrowRight", "n", "N"]);
 export function ControlPanel() {
   const {
     queue,
+    syncStatus,
     stats,
     issue,
     next,
@@ -28,7 +31,7 @@ export function ControlPanel() {
     enableNotifications
   } = useQueue();
 
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   // Mode: "doctor" | "receptionist" | "dual"
   const [activeRole, setActiveRole] = useState<"doctor" | "receptionist" | "dual">("doctor");
@@ -37,6 +40,9 @@ export function ControlPanel() {
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientPhone, setNewPatientPhone] = useState("");
   const [lastIssuedMessage, setLastIssuedMessage] = useState<string | null>(null);
+  const [lastIssuedToken, setLastIssuedToken] = useState<number | null>(null);
+  const [lastIssuedAccessKey, setLastIssuedAccessKey] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   // Settings form state
   const [clinicName, setClinicName] = useState(queue.clinicName);
@@ -103,18 +109,48 @@ export function ControlPanel() {
   const handleIssueToken = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const name = newPatientName.trim();
-    issue(name, newPatientPhone);
+    const accessKey = createPatientAccessKey();
+    issue(name, newPatientPhone, accessKey);
     const assignedName = name || `Patient #${queue.totalIssued + 1}`;
     setLastIssuedMessage(`#${queue.totalIssued + 1} · ${assignedName}`);
+    setLastIssuedToken(queue.totalIssued + 1);
+    setLastIssuedAccessKey(accessKey ?? null);
     setNewPatientName("");
     setNewPatientPhone("");
     setTimeout(() => setLastIssuedMessage(null), 4500);
   };
 
   const handleQuickIssue = () => {
-    issue();
+    const accessKey = createPatientAccessKey();
+    issue(undefined, undefined, accessKey);
     setLastIssuedMessage(`#${queue.totalIssued + 1} · Patient #${queue.totalIssued + 1}`);
+    setLastIssuedToken(queue.totalIssued + 1);
+    setLastIssuedAccessKey(accessKey ?? null);
     setTimeout(() => setLastIssuedMessage(null), 4000);
+  };
+
+  const sharePatientTracker = async (
+    tokenNumber = lastIssuedToken,
+    accessKey = lastIssuedAccessKey
+  ) => {
+    if (!tokenNumber) return;
+    const resolvedAccessKey = accessKey ?? queue.tokens.find((token) => token.tokenNumber === tokenNumber)?.patientAccessKey;
+    if (isQueueSyncConfigured && !resolvedAccessKey) {
+      setShareMessage(t("secureTrackerUnavailable"));
+      return;
+    }
+    const url = `${window.location.origin}/patient?token=${tokenNumber}${resolvedAccessKey ? `#${resolvedAccessKey}` : ""}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "TokenFlow patient tracker", url });
+        setShareMessage(t("trackerLinkShared"));
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareMessage(t("trackerLinkCopied"));
+      }
+    } catch {
+      setShareMessage(t("trackerLinkCopyFailed"));
+    }
   };
 
   const handleConfirmCancel = () => {
@@ -154,6 +190,11 @@ export function ControlPanel() {
     const secs = timerSeconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }, [timerSeconds]);
+  const issuedTrackerAccessKey = lastIssuedAccessKey ??
+    queue.tokens.find((token) => token.tokenNumber === lastIssuedToken)?.patientAccessKey;
+  const issuedTrackerHref = lastIssuedToken
+    ? `/patient?token=${lastIssuedToken}${issuedTrackerAccessKey ? `#${issuedTrackerAccessKey}` : ""}`
+    : "";
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
@@ -169,6 +210,9 @@ export function ControlPanel() {
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{queue.clinicName}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {t("doctor")}: <span className="text-ink font-bold">{queue.doctorName}</span>
+          </p>
+          <p className="mt-1 text-xs font-medium text-slate-400">
+            {syncStatus === "live" ? t("liveSynced") : syncStatus === "connecting" ? t("syncing") : syncStatus === "offline" ? t("syncOffline") : t("deviceOnly")}
           </p>
         </div>
 
@@ -222,6 +266,16 @@ export function ControlPanel() {
           >
             <span className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
             <span className="hidden sm:inline">{audioEnabled ? t("soundAlerts") : "Muted"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              playHospitalChime();
+              speakCallAnnouncement(queue.currentToken || 1, t("audioTestPatient"), language);
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            {t("testAudio")}
           </button>
 
           {/* Desktop Push Notification Toggle */}
@@ -542,8 +596,17 @@ export function ControlPanel() {
               </div>
 
               {lastIssuedMessage && (
-                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-black text-emerald-800 animate-fadeIn">
-                  {t("tokenIssuedSuccess")}: {lastIssuedMessage}
+                <div role="status" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900 animate-fadeIn">
+                  <span>{t("tokenIssuedSuccess")}: {lastIssuedMessage}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isQueueSyncConfigured && (
+                      <button type="button" onClick={() => void sharePatientTracker()} disabled={!issuedTrackerAccessKey} className="font-semibold underline underline-offset-2 disabled:cursor-wait disabled:text-slate-400">
+                        {t("sharePatientTracker")}
+                      </button>
+                    )}
+                    {lastIssuedToken && <a className="font-semibold underline underline-offset-2" href={issuedTrackerHref} target="_blank">{t("openTracker")}</a>}
+                  </div>
+                  {shareMessage && <span className="w-full text-xs font-medium">{shareMessage}</span>}
                 </div>
               )}
 
@@ -578,14 +641,15 @@ export function ControlPanel() {
                   >
                     + {t("issueToken")} #{queue.totalIssued + 1}
                   </button>
-                  <button
-                    type="button"
-                    onClick={next}
-                    disabled={stats.waitingCount === 0}
-                    className="rounded-xl bg-mint px-4 py-3.5 text-sm font-black text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {t("callNextPatient")}
-                  </button>
+                  {stats.waitingTokens[0]?.patientPhone ? (
+                    <a href={`tel:${toDialablePhone(stats.waitingTokens[0].patientPhone)}`} className="rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
+                      {t("callNextPhone")}
+                    </a>
+                  ) : (
+                    <button type="button" disabled className="rounded-xl bg-slate-100 px-4 py-3.5 text-sm font-semibold text-slate-400">
+                      {stats.waitingCount ? t("noPhoneNumber") : t("callNextPhone")}
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -698,12 +762,24 @@ export function ControlPanel() {
                         <div className="flex items-center gap-1.5">
                           {token.status === "WAITING" && (
                             <>
-                              <button
-                                onClick={() => callSpecific(token.tokenNumber)}
-                                className="rounded-md bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-black text-emerald-700 hover:bg-emerald-100"
-                              >
-                                Call
-                              </button>
+                              {token.patientPhone ? (
+                                <a href={`tel:${toDialablePhone(token.patientPhone)}`} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50">
+                                  {t("callPatientPhone")}
+                                </a>
+                              ) : (
+                                <button disabled title={t("noPhoneNumber")} className="cursor-not-allowed rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-400">
+                                  {t("noPhoneNumber")}
+                                </button>
+                              )}
+                              {token.patientAccessKey && (
+                                <button
+                                  type="button"
+                                  onClick={() => void sharePatientTracker(token.tokenNumber, token.patientAccessKey)}
+                                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                  {t("sharePatientTracker")}
+                                </button>
+                              )}
                               <button
                                 onClick={() => skip(token.tokenNumber)}
                                 className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700 hover:bg-orange-100"
@@ -867,4 +943,16 @@ export function ControlPanel() {
       )}
     </div>
   );
+}
+
+function toDialablePhone(phone: string) {
+  return phone.replace(/[^\d+]/g, "");
+}
+
+function createPatientAccessKey() {
+  if (!isQueueSyncConfigured) return undefined;
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") return undefined;
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
