@@ -20,6 +20,7 @@ export const firebaseApp = firebaseConfigured
   : null;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
+export const firebaseVapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim() || null;
 export const clinicId = process.env.NEXT_PUBLIC_CLINIC_ID?.trim() || null;
 export const isQueueSyncConfigured = Boolean(firestore && clinicId);
 

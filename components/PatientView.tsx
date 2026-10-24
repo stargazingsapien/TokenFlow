@@ -1,12 +1,13 @@
 "use client";
 
 import { estimateDynamicWait, TokenRecord } from "@/lib/queue";
-import { isQueueSyncConfigured, publicQueueSignalRef } from "@/lib/firebase";
+import { firebaseApp, firebaseVapidKey, isQueueSyncConfigured, publicQueueSignalRef } from "@/lib/firebase";
+import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { onSnapshot } from "firebase/firestore";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { StatusPill } from "./StatusPill";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type PatientTrackerData = {
   clinicName: string;
@@ -23,13 +24,16 @@ type PatientTrackerData = {
 
 export function PatientView({ initialToken }: { initialToken: number }) {
   const { queue, stats, isReady } = useQueue();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [tokenNumber, setTokenNumber] = useState<number | "">(initialToken || "");
   const [accessKey, setAccessKey] = useState("");
   const [trackerData, setTrackerData] = useState<PatientTrackerData | null>(null);
   const [trackerStatus, setTrackerStatus] = useState<"local" | "connecting" | "live" | "offline" | "private-link">(
     isQueueSyncConfigured ? "connecting" : "local"
   );
+  const [pushStatus, setPushStatus] = useState<"idle" | "enabling" | "enabled" | "error">("idle");
+  const [pushMessage, setPushMessage] = useState("");
+  const foregroundPushCleanupRef = useRef<(() => void) | null>(null);
   const selectedTokenNumber = tokenNumber === "" ? 0 : tokenNumber;
 
   useEffect(() => {
@@ -121,6 +125,63 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   const completedCount = isQueueSyncConfigured ? trackerData?.completedCount ?? 0 : stats.completedCount;
   const clinicName = trackerData?.clinicName ?? queue.clinicName;
   const doctorName = trackerData?.doctorName ?? queue.doctorName;
+
+  const enablePhoneNotifications = async () => {
+    if (!firebaseApp || !firebaseVapidKey || !accessKey || !selectedTokenNumber) {
+      setPushStatus("error");
+      setPushMessage(t("pushNotConfigured"));
+      return;
+    }
+
+    setPushStatus("enabling");
+    setPushMessage("");
+    try {
+      if (!(await isSupported())) {
+        throw new Error("push-not-supported");
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("error");
+        setPushMessage(t("pushPermissionDenied"));
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+      const messaging = getMessaging(firebaseApp);
+      const fcmToken = await getToken(messaging, {
+        vapidKey: firebaseVapidKey,
+        serviceWorkerRegistration: registration
+      });
+      if (!fcmToken) throw new Error("push-token-unavailable");
+
+      const response = await fetch("/api/patient/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenNumber: selectedTokenNumber,
+          accessKey,
+          fcmToken,
+          language
+        })
+      });
+      if (!response.ok) throw new Error("push-registration-failed");
+
+      foregroundPushCleanupRef.current?.();
+      foregroundPushCleanupRef.current = onMessage(messaging, (payload) => {
+        const title = payload.notification?.title ?? "TokenFlow";
+        const body = payload.notification?.body ?? "Your clinic queue has an update.";
+        const url = payload.data?.url ?? window.location.href;
+        void registration.showNotification(title, { body, icon: "/favicon.ico", data: { url } });
+      });
+      setPushStatus("enabled");
+      setPushMessage(t("pushEnabledMessage"));
+    } catch {
+      setPushStatus("error");
+      setPushMessage(t("pushEnableFailed"));
+    }
+  };
+
+  useEffect(() => () => foregroundPushCleanupRef.current?.(), []);
 
   // Sound alert on mobile when patient's turn arrives!
   useEffect(() => {
@@ -243,6 +304,26 @@ export function PatientView({ initialToken }: { initialToken: number }) {
               </div>
             </div>
           </div>
+
+          {isQueueSyncConfigured && trackerData && accessKey && tokenRecord && (
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 shadow-sm">
+              <h3 className="text-sm font-black text-indigo-950">{t("phoneNotifications")}</h3>
+              <p className="mt-1 text-sm text-indigo-900/80">{t("phoneNotificationsDescription")}</p>
+              <button
+                type="button"
+                onClick={() => void enablePhoneNotifications()}
+                disabled={pushStatus === "enabling"}
+                className="mt-3 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                {pushStatus === "enabling"
+                  ? t("enablingPhoneNotifications")
+                  : pushStatus === "enabled"
+                    ? t("phoneNotificationsEnabled")
+                    : t("enablePhoneNotifications")}
+              </button>
+              {pushMessage && <p role="status" className="mt-2 text-xs font-semibold text-indigo-950">{pushMessage}</p>}
+            </div>
+          )}
 
           {/* OPD Queue Status Summary Card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

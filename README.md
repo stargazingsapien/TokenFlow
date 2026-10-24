@@ -26,7 +26,7 @@ Staff pages (`/control` and `/display`) use Firebase Email/Password sign-in. In 
 Without Firebase configuration, the queue is stored on the current device and synchronizes only between tabs in the same browser. To sync staff and patient phones in realtime:
 
 1. Create a Firebase project and a Cloud Firestore database.
-2. In the Firebase console, register a Web app and copy its Firebase config values into `.env.local`. Add a server service account JSON as `FIREBASE_SERVICE_ACCOUNT_JSON`, or use Application Default Credentials in a Google Cloud environment. Keep the service account private and never prefix it with `NEXT_PUBLIC_`.
+2. In the Firebase console, register a Web app and copy its Firebase config values into `.env.local`. In **Project settings → Cloud Messaging → Web Push certificates**, generate/copy a VAPID key into `NEXT_PUBLIC_FIREBASE_VAPID_KEY`. Add a server service account JSON as `FIREBASE_SERVICE_ACCOUNT_JSON`, or use Application Default Credentials in a Google Cloud environment. Keep the service account private and never prefix it with `NEXT_PUBLIC_`.
 3. Apply the rules from `firebase/firestore.rules` in the Firestore Rules console.
 4. Set one stable `NEXT_PUBLIC_CLINIC_ID` for this clinic, then restart the Next.js server.
 
@@ -37,6 +37,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=
 FIREBASE_SERVICE_ACCOUNT_JSON=
 NEXT_PUBLIC_CLINIC_ID=tokenflow-main
 TOKENFLOW_STAFF_EMAILS=staff@example.com
@@ -45,6 +46,8 @@ TOKENFLOW_STAFF_EMAILS=staff@example.com
 Firebase web config values are public client settings. The Admin service account JSON is private and must stay server-side.
 
 Staff updates go through the login-protected API and are stored in a private Firestore document. Browser clients can read only the public queue-change signal; they cannot read private patient data or write queue documents. Patient links contain that patient's token number and a secret key in the URL fragment. The server validates the key and returns only that patient's status and name. Share the private tracker link after issuing a token.
+
+Patients can enable phone push notifications from their private tracker page. A device must opt in once; after that, the clinic sends a push when the patient's token is called, even while the tracker page is closed. Delivery requires the Firebase Web Push VAPID key and a browser/device that supports push notifications.
 
 ## Hardware clicker
 
