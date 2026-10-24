@@ -129,16 +129,17 @@ export function PatientView({ initialToken }: { initialToken: number }) {
 
   useEffect(() => {
     if (!trackerData || !accessKey || !tokenRecord || typeof Notification === "undefined") return;
-    if (Notification.permission !== "default") return;
 
-    const dismissedKey = `tokenflow-push-prompt-dismissed-${selectedTokenNumber}`;
+    // Show the opt-in dialog even if browser permission was granted earlier:
+    // this device may still need to register its FCM token with the clinic.
+    const dismissedKey = `tokenflow-push-prompt-dismissed-v2-${selectedTokenNumber}`;
     if (window.sessionStorage.getItem(dismissedKey) !== "1") {
       setShowNotificationPrompt(true);
     }
   }, [accessKey, selectedTokenNumber, tokenRecord, trackerData]);
 
   const dismissNotificationPrompt = () => {
-    window.sessionStorage.setItem(`tokenflow-push-prompt-dismissed-${selectedTokenNumber}`, "1");
+    window.sessionStorage.setItem(`tokenflow-push-prompt-dismissed-v2-${selectedTokenNumber}`, "1");
     setShowNotificationPrompt(false);
   };
 
@@ -191,7 +192,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       });
       setPushStatus("enabled");
       setPushMessage(t("pushEnabledMessage"));
-      setShowNotificationPrompt(false);
+      dismissNotificationPrompt();
     } catch {
       setPushStatus("error");
       setPushMessage(t("pushEnableFailed"));
