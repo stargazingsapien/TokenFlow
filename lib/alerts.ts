@@ -61,22 +61,55 @@ export function speakCallAnnouncement(
       voiceLang = "hi-IN";
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = voiceLang;
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-
-    // Select the installed Indian-language voice when the browser provides one.
-    // Browsers without that voice still receive the correct script and language tag.
+    const synthesis = window.speechSynthesis;
     const languagePrefix = voiceLang.toLowerCase().split("-")[0];
-    const availableVoices = window.speechSynthesis.getVoices();
-    utterance.voice =
-      availableVoices.find((voice) => voice.lang.toLowerCase() === voiceLang.toLowerCase()) ??
-      availableVoices.find((voice) => voice.lang.toLowerCase().startsWith(`${languagePrefix}-`)) ??
-      null;
+    const hasVoiceForLanguage = () =>
+      synthesis.getVoices().some((voice) => {
+        const voiceLanguage = voice.lang.toLowerCase();
+        return voiceLanguage === voiceLang.toLowerCase() ||
+          voiceLanguage === languagePrefix ||
+          voiceLanguage.startsWith(`${languagePrefix}-`);
+      });
+    const speak = () => {
+      const voices = synthesis.getVoices();
+      const selectedVoice =
+        voices.find((voice) => voice.lang.toLowerCase() === voiceLang.toLowerCase()) ??
+        voices.find((voice) => voice.lang.toLowerCase() === languagePrefix) ??
+        voices.find((voice) => voice.lang.toLowerCase().startsWith(`${languagePrefix}-`)) ??
+        null;
 
-    // Fallback if specific language voice not found
-    window.speechSynthesis.speak(utterance);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = voiceLang;
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.voice = selectedVoice;
+      utterance.onerror = (event) => {
+        console.warn(`Speech announcement failed for ${voiceLang}:`, event.error);
+      };
+      synthesis.speak(utterance);
+    };
+
+    // Some browsers populate their installed voice list only after the first
+    // voiceschanged event. Wait briefly so Gujarati/Hindi can select the right voice.
+    if (hasVoiceForLanguage() || lang === "en") {
+      speak();
+      return;
+    }
+
+    let hasSpoken = false;
+    let fallbackTimer = 0;
+    const speakOnce = () => {
+      if (hasSpoken) return;
+      hasSpoken = true;
+      synthesis.removeEventListener("voiceschanged", onVoicesChanged);
+      window.clearTimeout(fallbackTimer);
+      speak();
+    };
+    const onVoicesChanged = () => {
+      if (hasVoiceForLanguage()) speakOnce();
+    };
+    synthesis.addEventListener("voiceschanged", onVoicesChanged);
+    fallbackTimer = window.setTimeout(speakOnce, 1200);
   } catch (err) {
     console.warn("Speech announcement error:", err);
   }
