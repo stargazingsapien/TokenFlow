@@ -4,7 +4,6 @@ import { TokenRecord, estimateDynamicWait } from "@/lib/queue";
 import { useI18n } from "./I18nProvider";
 import { useQueue } from "./QueueProvider";
 import { StatusPill } from "./StatusPill";
-import { WhatsAppSendPanel } from "./WhatsAppSendPanel";
 import { isQueueSyncConfigured } from "@/lib/firebase";
 import { playHospitalChime, speakCallAnnouncement } from "@/lib/alerts";
 import { useEffect, useMemo, useState } from "react";
@@ -653,16 +652,6 @@ export function ControlPanel() {
                 </div>
               </form>
             </div>
-
-            <details className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-slate-800">
-                <span>Patient messaging</span>
-                <span className="text-sm font-medium text-slate-500">WhatsApp · optional</span>
-              </summary>
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <WhatsAppSendPanel />
-              </div>
-            </details>
 
             {/* Live OPD Queue Manager & Action List */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
