@@ -33,6 +33,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   );
   const [pushStatus, setPushStatus] = useState<"idle" | "enabling" | "enabled" | "error">("idle");
   const [pushMessage, setPushMessage] = useState("");
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const foregroundPushCleanupRef = useRef<(() => void) | null>(null);
   const selectedTokenNumber = tokenNumber === "" ? 0 : tokenNumber;
 
@@ -126,6 +127,21 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   const clinicName = trackerData?.clinicName ?? queue.clinicName;
   const doctorName = trackerData?.doctorName ?? queue.doctorName;
 
+  useEffect(() => {
+    if (!trackerData || !accessKey || !tokenRecord || typeof Notification === "undefined") return;
+    if (Notification.permission !== "default") return;
+
+    const dismissedKey = `tokenflow-push-prompt-dismissed-${selectedTokenNumber}`;
+    if (window.sessionStorage.getItem(dismissedKey) !== "1") {
+      setShowNotificationPrompt(true);
+    }
+  }, [accessKey, selectedTokenNumber, tokenRecord, trackerData]);
+
+  const dismissNotificationPrompt = () => {
+    window.sessionStorage.setItem(`tokenflow-push-prompt-dismissed-${selectedTokenNumber}`, "1");
+    setShowNotificationPrompt(false);
+  };
+
   const enablePhoneNotifications = async () => {
     if (!firebaseApp || !firebaseVapidKey || !accessKey || !selectedTokenNumber) {
       setPushStatus("error");
@@ -175,6 +191,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       });
       setPushStatus("enabled");
       setPushMessage(t("pushEnabledMessage"));
+      setShowNotificationPrompt(false);
     } catch {
       setPushStatus("error");
       setPushMessage(t("pushEnableFailed"));
@@ -229,6 +246,49 @@ export function PatientView({ initialToken }: { initialToken: number }) {
 
   return (
     <section className="mx-auto max-w-5xl space-y-6">
+      {showNotificationPrompt && trackerData && tokenRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="presentation">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="patient-notification-title"
+            className="relative w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <button
+              type="button"
+              onClick={dismissNotificationPrompt}
+              aria-label="Close notification prompt"
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              ×
+            </button>
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl" aria-hidden="true">
+              🔔
+            </div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-700">Token #{selectedTokenNumber}</p>
+            <h2 id="patient-notification-title" className="mt-2 pr-8 text-2xl font-black tracking-tight text-slate-950">
+              {t("phoneNotifications")}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">{t("phoneNotificationsDescription")}</p>
+            <button
+              type="button"
+              onClick={() => void enablePhoneNotifications()}
+              disabled={pushStatus === "enabling"}
+              className="mt-6 w-full rounded-xl bg-indigo-700 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-700/20 transition hover:bg-indigo-800 disabled:cursor-wait disabled:opacity-60"
+            >
+              {pushStatus === "enabling" ? t("enablingPhoneNotifications") : t("enablePhoneNotifications")}
+            </button>
+            <button
+              type="button"
+              onClick={dismissNotificationPrompt}
+              className="mt-3 w-full rounded-xl px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+            >
+              {t("notNow")}
+            </button>
+            {pushMessage && <p role="status" className="mt-3 text-center text-xs font-semibold text-indigo-950">{pushMessage}</p>}
+          </div>
+        </div>
+      )}
       {/* Read-Only Notice Badge */}
       <div className="flex items-center justify-between rounded-xl border border-blue-200/60 bg-blue-50/80 px-4 py-2.5 text-xs font-semibold text-blue-800">
         <span className="flex items-center gap-1.5">
