@@ -116,6 +116,10 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     };
     const refreshRemote = async () => {
       const response = await fetch(endpoint, { cache: "no-store" });
+      if (response.status === 401) {
+        if (active) window.location.assign(`/login?next=${encodeURIComponent(pathname)}`);
+        throw new Error("Staff session expired");
+      }
       if (!response.ok) throw new Error("Queue sync unavailable");
       const remoteQueue = (await response.json()) as QueueState | null;
       if (remoteQueue) {
@@ -193,6 +197,10 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify(nextState)
           }).then(async (response) => {
             if (!response.ok) {
+              if (response.status === 401) {
+                window.location.assign(`/login?next=${encodeURIComponent(pathname ?? "/control")}`);
+                return;
+              }
               setSyncStatus("offline");
               return;
             }

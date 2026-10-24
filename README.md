@@ -19,12 +19,7 @@ Open:
 
 Use the language picker in the header to switch the interface between English, Gujarati, and Hindi.
 
-Staff pages (`/control` and `/display`) require login. The default local credentials are:
-
-- Username: `admin`
-- Password: `tokenflow123`
-
-Change these in `.env.local` with `TOKENFLOW_STAFF_USERNAME` and `TOKENFLOW_STAFF_PASSWORD` before real clinic use.
+Staff pages (`/control` and `/display`) use Firebase Email/Password sign-in. In the Firebase Console, enable **Authentication → Sign-in method → Email/Password**, then create staff accounts under **Authentication → Users**. Set `TOKENFLOW_STAFF_EMAILS` in `.env.local` to a comma-separated list of allowed staff email addresses. Only those accounts can create a server session or use staff APIs; there is no public sign-up flow in the website.
 
 ## Realtime backend
 
@@ -44,6 +39,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 FIREBASE_SERVICE_ACCOUNT_JSON=
 NEXT_PUBLIC_CLINIC_ID=tokenflow-main
+TOKENFLOW_STAFF_EMAILS=staff@example.com
 ```
 
 Firebase web config values are public client settings. The Admin service account JSON is private and must stay server-side.

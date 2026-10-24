@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { SESSION_COOKIE, isStaffSession } from "@/lib/auth";
+import { isStaffRequest } from "@/lib/serverAuth";
 import { defaultQueueState } from "@/lib/queue";
 import type { QueueState } from "@/lib/queue";
 import { clinicId } from "@/lib/firebase";
@@ -9,7 +9,7 @@ import { firestoreAdmin } from "@/lib/firebaseAdmin";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  if (!isStaffRequest(request)) {
+  if (!(await isStaffRequest(request))) {
     return NextResponse.json({ message: "Staff login required." }, { status: 401 });
   }
   if (!clinicId || !firestoreAdmin) {
@@ -43,9 +43,8 @@ export async function GET(request: Request) {
   }
   return NextResponse.json(state, { headers: { "Cache-Control": "no-store" } });
 }
-
 export async function POST(request: Request) {
-  if (!isStaffRequest(request)) {
+  if (!(await isStaffRequest(request))) {
     return NextResponse.json({ message: "Staff login required." }, { status: 401 });
   }
   if (!clinicId || !firestoreAdmin) {
@@ -75,14 +74,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Unable to save the clinic queue." }, { status: 500 });
   }
   return NextResponse.json({ ok: true, state }, { headers: { "Cache-Control": "no-store" } });
-}
-
-function isStaffRequest(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const session = cookieHeader
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-    ?.slice(SESSION_COOKIE.length + 1);
-  return isStaffSession(session);
 }

@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { doc, getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -18,6 +19,7 @@ export const firebaseApp = firebaseConfigured
   ? getApps().length ? getApp() : initializeApp(firebaseConfig)
   : null;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
+export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 export const clinicId = process.env.NEXT_PUBLIC_CLINIC_ID?.trim() || null;
 export const isQueueSyncConfigured = Boolean(firestore && clinicId);
 

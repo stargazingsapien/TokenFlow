@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, STAFF_SESSION_VALUE } from "./lib/auth";
+import { SESSION_COOKIE } from "./lib/auth";
 
 const protectedRoutes = ["/control", "/display"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
-  const isLoggedIn = request.cookies.get(SESSION_COOKIE)?.value === STAFF_SESSION_VALUE;
+  // Middleware only routes based on cookie presence; every protected API verifies
+  // the signed Firebase session cookie with Firebase Admin.
+  const isLoggedIn = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (isProtectedRoute && !isLoggedIn) {
     const loginUrl = request.nextUrl.clone();

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LanguageSwitcher, useI18n } from "./I18nProvider";
 import { QueueProvider } from "./QueueProvider";
+import { firebaseAuth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 const links: Array<{ href: string; labelKey: TranslationKey }> = [
   { href: "/control", labelKey: "navControl" },
@@ -61,8 +63,12 @@ export function QueueChrome({ children }: { children: React.ReactNode }) {
               {isStaffScreen ? (
                 <button
                   onClick={async () => {
-                    await fetch("/api/logout", { method: "POST" });
-                    window.location.assign("/login");
+                    try {
+                      if (firebaseAuth) await signOut(firebaseAuth);
+                    } finally {
+                      await fetch("/api/logout", { method: "POST" });
+                      window.location.assign("/login");
+                    }
                   }}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-rose-300 hover:text-rose-700"
                 >

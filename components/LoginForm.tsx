@@ -1,13 +1,15 @@
 "use client";
 
 import { useI18n } from "./I18nProvider";
+import { firebaseAuth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export function LoginForm() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,22 +36,31 @@ export function LoginForm() {
             setIsSubmitting(true);
 
             try {
+              if (!firebaseAuth) {
+                setError(t("invalidLogin"));
+                return;
+              }
+              const credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+              const idToken = await credential.user.getIdToken();
               const response = await fetch("/api/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ idToken })
               });
 
               if (!response.ok) {
+                await signOut(firebaseAuth);
                 setError(t("invalidLogin"));
                 return;
               }
 
+              await signOut(firebaseAuth);
               const destination = new URL(requestedPath, window.location.origin);
               window.location.assign(
                 destination.origin === window.location.origin ? destination.href : "/control"
               );
             } catch {
+              if (firebaseAuth?.currentUser) await signOut(firebaseAuth).catch(() => undefined);
               setError(t("invalidLogin"));
             } finally {
               setIsSubmitting(false);
@@ -57,12 +68,13 @@ export function LoginForm() {
           }}
         >
           <label className="grid gap-1 text-sm font-bold text-slate-600">
-            {t("username")}
+            {t("emailAddress")}
             <input
               required
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
               className="rounded-md border border-slate-200 px-3 py-3 text-ink"
             />
           </label>
