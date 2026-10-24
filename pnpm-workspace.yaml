@@ -1,2 +1,5 @@
 allowBuilds:
   unrs-resolver: set this to true or false
+
+overrides:
+  jwks-rsa>jose: 4.15.9

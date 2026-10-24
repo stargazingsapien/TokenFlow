@@ -4,7 +4,7 @@ TokenFlow is a live OPD token tracker for clinics. It gives reception staff a fa
 
 ## Run locally
 
-Requires Node.js 22 or newer for the Firebase Admin SDK.
+Requires Node.js 22.12 or newer for Firebase Admin and its JWKS dependencies.
 
 ```bash
 npm install
