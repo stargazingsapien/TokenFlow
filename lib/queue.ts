@@ -328,18 +328,26 @@ export function calculateDynamicStats(state: QueueState, nowMs = Date.now()): Qu
   const skippedTokens = state.tokens.filter((t) => t.status === "SKIPPED");
   const cancelledTokens = state.tokens.filter((t) => t.status === "CANCELLED");
 
-  // Calculate actual average of completed checkups today
+  // Use only the latest completed consultations. Old or abandoned sessions can
+  // otherwise leave enormous durations in the queue and poison every ETA.
+  const maxPaceSampleMinutes = Math.max(4, state.avgConsultMinutes * 2);
   const durations = completedTokens
-    .map((t) => t.actualDurationMinutes)
-    .filter((d): d is number => typeof d === "number" && d > 0);
+    .filter((token) => typeof token.actualDurationMinutes === "number" && token.actualDurationMinutes > 0)
+    .sort((a, b) => Date.parse(b.completedAt ?? b.issuedAt) - Date.parse(a.completedAt ?? a.issuedAt))
+    .slice(0, 5)
+    .map((token) => Math.min(token.actualDurationMinutes!, maxPaceSampleMinutes));
 
   let actualAvgMinutes: number | null = null;
   let effectiveAvgMinutes = state.avgConsultMinutes;
 
   if (durations.length > 0) {
-    const sum = durations.reduce((acc, curr) => acc + curr, 0);
-    actualAvgMinutes = Math.round(sum / durations.length);
-    // Weighted blend: 30% baseline setup, 70% actual real-world doctor pace today
+    const sortedDurations = [...durations].sort((a, b) => a - b);
+    const middle = Math.floor(sortedDurations.length / 2);
+    const median = sortedDurations.length % 2
+      ? sortedDurations[middle]
+      : (sortedDurations[middle - 1] + sortedDurations[middle]) / 2;
+    actualAvgMinutes = Math.round(median);
+    // Blend the configured baseline with a robust, bounded recent pace.
     effectiveAvgMinutes = Math.max(2, Math.round(state.avgConsultMinutes * 0.3 + actualAvgMinutes * 0.7));
   }
 
@@ -432,8 +440,12 @@ export function estimateDynamicWait(
     if (stats.currentElapsedMinutes < stats.effectiveAvgMinutes) {
       remainingCurrentMinutes = Math.max(1, stats.effectiveAvgMinutes - stats.currentElapsedMinutes);
     } else {
-      // Current patient is overtime! Buffer remaining for conclusion:
-      remainingCurrentMinutes = Math.max(2, Math.round(stats.effectiveAvgMinutes * 0.25));
+      // Once the consultation passes its estimate, reflect each additional
+      // minute in the remaining wait instead of freezing at a fixed buffer.
+      remainingCurrentMinutes = Math.max(
+        2,
+        Math.round(stats.effectiveAvgMinutes * 0.25) + stats.overtimeMinutes
+      );
     }
   }
 
