@@ -41,6 +41,8 @@ export async function POST(request: Request) {
       waitingCount: stats.waitingCount,
       completedCount: stats.completedCount,
       currentTokenNumber: state.currentToken,
+      effectiveAvgMinutes: stats.effectiveAvgMinutes,
+      servingStartedAt: stats.servingToken?.servedAt,
       token: publicToken,
       waitMinutes: wait.waitMinutes,
       patientsAhead: wait.patientsAhead,

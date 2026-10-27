@@ -167,6 +167,14 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
         )
       : null;
 
+    const fallbackSyncTimer = isQueueSyncConfigured && pathname !== "/patient"
+      ? window.setInterval(() => {
+          void refreshRemote()
+            .then(() => setSyncStatus("live"))
+            .catch(() => setSyncStatus("offline"));
+        }, 15000)
+      : null;
+
     const onStorage = (event: StorageEvent) => {
       if (event.key === "tokenflow.queue.v1") {
         const fresh = loadQueue();
@@ -179,6 +187,7 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     return () => {
       channelRef.current?.close();
       unsubscribeRealtime?.();
+      if (fallbackSyncTimer) window.clearInterval(fallbackSyncTimer);
       window.removeEventListener("storage", onStorage);
       active = false;
     };

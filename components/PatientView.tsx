@@ -16,6 +16,8 @@ type PatientTrackerData = {
   waitingCount: number;
   completedCount: number;
   currentTokenNumber: number;
+  effectiveAvgMinutes: number;
+  servingStartedAt?: string;
   token: TokenRecord;
   waitMinutes: number;
   patientsAhead: number;
@@ -34,11 +36,18 @@ export function PatientView({ initialToken }: { initialToken: number }) {
   const [pushStatus, setPushStatus] = useState<"idle" | "enabling" | "enabled" | "error">("idle");
   const [pushMessage, setPushMessage] = useState("");
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const trackerHasLoadedRef = useRef(false);
   const foregroundPushCleanupRef = useRef<(() => void) | null>(null);
   const selectedTokenNumber = tokenNumber === "" ? 0 : tokenNumber;
 
   useEffect(() => {
     setAccessKey(decodeURIComponent(window.location.hash.slice(1)));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 5000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -53,8 +62,9 @@ export function PatientView({ initialToken }: { initialToken: number }) {
     }
 
     let active = true;
+    trackerHasLoadedRef.current = false;
     const refreshTracker = async () => {
-      if (active) setTrackerStatus("connecting");
+      if (active && !trackerHasLoadedRef.current) setTrackerStatus("connecting");
       try {
         const response = await fetch("/api/queue/public", {
           method: "POST",
@@ -64,25 +74,33 @@ export function PatientView({ initialToken }: { initialToken: number }) {
         });
         if (!response.ok) {
           if (active) {
-            setTrackerData(null);
-            setTrackerStatus(response.status === 404 ? "private-link" : "offline");
+            if (response.status === 404) {
+              setTrackerData(null);
+              trackerHasLoadedRef.current = false;
+              setTrackerStatus("private-link");
+            } else {
+              setTrackerStatus("offline");
+            }
           }
           return;
         }
         const next = (await response.json()) as PatientTrackerData;
         if (active) {
           setTrackerData(next);
+          trackerHasLoadedRef.current = true;
           setTrackerStatus("live");
         }
       } catch {
         if (active) {
-          setTrackerData(null);
           setTrackerStatus("offline");
         }
       }
     };
 
     void refreshTracker();
+    // Snapshot listeners normally deliver updates immediately. This polling
+    // fallback keeps the tracker fresh if a mobile browser drops its listener.
+    const refreshTimer = window.setInterval(() => void refreshTracker(), 15000);
     const unsubscribeRealtime = publicQueueSignalRef
       ? onSnapshot(
           publicQueueSignalRef,
@@ -95,6 +113,7 @@ export function PatientView({ initialToken }: { initialToken: number }) {
 
     return () => {
       active = false;
+      window.clearInterval(refreshTimer);
       unsubscribeRealtime?.();
     };
   }, [accessKey, selectedTokenNumber]);
@@ -115,9 +134,35 @@ export function PatientView({ initialToken }: { initialToken: number }) {
     () => estimateDynamicWait(queue, selectedTokenNumber),
     [queue, selectedTokenNumber]
   );
-  const dynamicWait = isQueueSyncConfigured
-    ? trackerData ?? { waitMinutes: 0, patientsAhead: 0, isOvertime: false }
-    : localDynamicWait;
+  const dynamicWait = useMemo(() => {
+    if (!isQueueSyncConfigured || !trackerData) {
+      return isQueueSyncConfigured
+        ? { waitMinutes: 0, patientsAhead: 0, isOvertime: false, overtimeMinutes: 0, effectiveAvgMinutes: 0 }
+        : localDynamicWait;
+    }
+
+    const averageMinutes = trackerData.effectiveAvgMinutes || 1;
+    const elapsedMinutes = trackerData.servingStartedAt
+      ? Math.max(0, Math.floor((nowMs - new Date(trackerData.servingStartedAt).getTime()) / 60000))
+      : 0;
+    const overtimeMinutes = Math.max(0, elapsedMinutes - averageMinutes);
+    const isOvertime = Boolean(trackerData.servingStartedAt && overtimeMinutes > 0);
+    const remainingCurrentMinutes = !trackerData.servingStartedAt
+      ? 0
+      : elapsedMinutes < averageMinutes
+        ? Math.max(1, averageMinutes - elapsedMinutes)
+        : Math.max(2, Math.round(averageMinutes * 0.25) + overtimeMinutes);
+
+    return {
+      ...trackerData,
+      waitMinutes: trackerData.token.status === "WAITING"
+        ? remainingCurrentMinutes + trackerData.patientsAhead * averageMinutes
+        : 0,
+      isOvertime,
+      overtimeMinutes,
+      effectiveAvgMinutes: averageMinutes
+    };
+  }, [isQueueSyncConfigured, localDynamicWait, nowMs, trackerData]);
   const servingTokenNumber = isQueueSyncConfigured
     ? trackerData?.currentTokenNumber ?? 0
     : stats.servingToken?.tokenNumber ?? 0;
@@ -459,16 +504,21 @@ export function PatientView({ initialToken }: { initialToken: number }) {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                {t("dynamicWait")}
+                {t("turnEstimate")}
               </p>
               <span className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
                 <span>Auto-Updated</span>
               </span>
             </div>
 
-            <div className="mt-3 flex items-baseline gap-3">
-              <span className="text-5xl font-black text-ink sm:text-6xl">{tokenRecord ? dynamicWait.waitMinutes : "—"}</span>
-              <span className="text-xl font-bold text-slate-500">{t("min")}</span>
+            <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              {tokenRecord ? (
+                <span className="text-4xl font-black leading-tight text-ink sm:text-5xl">
+                  {formatWaitDuration(dynamicWait.waitMinutes, t)}
+                </span>
+              ) : (
+                <span className="text-5xl font-black text-ink sm:text-6xl">—</span>
+              )}
             </div>
 
             <p className="mt-2 text-sm font-semibold text-slate-600">
@@ -531,4 +581,13 @@ export function PatientView({ initialToken }: { initialToken: number }) {
       </div>
     </section>
   );
+}
+
+function formatWaitDuration(minutes: number, t: (key: "hours" | "hour" | "minutes" | "minute" | "min") => string) {
+  const roundedMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = roundedMinutes % 60;
+  if (hours === 0) return `${roundedMinutes} ${roundedMinutes === 1 ? t("minute") : t("minutes")}`;
+  if (remainingMinutes === 0) return `${hours} ${hours === 1 ? t("hour") : t("hours")}`;
+  return `${hours} ${hours === 1 ? t("hour") : t("hours")} ${remainingMinutes} ${remainingMinutes === 1 ? t("minute") : t("minutes")}`;
 }
