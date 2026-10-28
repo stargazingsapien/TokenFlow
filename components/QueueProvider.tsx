@@ -2,22 +2,16 @@
 
 import {
   QueueDynamicStats,
+  QueueAction,
   QueueState,
+  applyQueueAction,
   calculateDynamicStats,
-  callNextToken,
-  callSpecificToken,
-  cancelToken,
-  completeCurrentCheckup,
   createQueueChannel,
   defaultQueueState,
-  issueToken,
   loadQueue,
-  requeueToken,
-  resetQueue,
   saveQueue,
-  skipCurrentToken,
-  updateSettings
 } from "@/lib/queue";
+import type { TokenRecord } from "@/lib/queue";
 import {
   playHospitalChime,
   requestNotificationPermission,
@@ -35,7 +29,7 @@ type QueueContextValue = {
   isReady: boolean;
   syncStatus: "local" | "connecting" | "live" | "offline";
   stats: QueueDynamicStats;
-  issue: (patientName?: string, patientPhone?: string, patientAccessKey?: string) => void;
+  issue: (patientName?: string, patientPhone?: string, patientAccessKey?: string) => Promise<TokenRecord | undefined>;
   next: () => void;
   callSpecific: (tokenNumber: number) => void;
   completeCheckup: () => void;
@@ -52,9 +46,12 @@ type QueueContextValue = {
 };
 
 const QueueContext = createContext<QueueContextValue | null>(null);
+type QueueMutation = Exclude<QueueAction, { type: "initialize" | "reconcile" }>;
 
 export function QueueProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<QueueState>(defaultQueueState);
+  const queueRef = useRef(queue);
+  const pendingActionsRef = useRef(0);
   const [isReady, setIsReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<QueueContextValue["syncStatus"]>(
     isQueueSyncConfigured ? "connecting" : "local"
@@ -100,11 +97,17 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initialQueue = loadQueue();
+    queueRef.current = initialQueue;
     setQueue(initialQueue);
     lastProcessedCallRef.current = initialQueue.lastCalledAt;
 
     const endpoint = "/api/queue";
-    const acceptIncoming = (incoming: QueueState) => {
+    const acceptIncoming = (incoming: QueueState, source: "remote" | "local" | "action" = "remote") => {
+      if (isQueueSyncConfigured) {
+        if (source === "local" || (source === "remote" && pendingActionsRef.current > 0)) return;
+        if ((incoming.syncRevision ?? 0) < (queueRef.current.syncRevision ?? 0)) return;
+      }
+      queueRef.current = incoming;
       saveQueue(incoming);
       setQueue(incoming);
       if (incoming.lastCalledAt && incoming.lastCalledAt !== lastProcessedCallRef.current) {
@@ -123,12 +126,30 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
       if (!response.ok) throw new Error("Queue sync unavailable");
       const remoteQueue = (await response.json()) as QueueState | null;
       if (remoteQueue) {
+        const mayRecoverLegacyTokens = initialQueue.syncRevision === undefined &&
+          (remoteQueue.syncRevision ?? 0) === 0 &&
+          initialQueue.totalIssued > remoteQueue.totalIssued &&
+          Date.parse(initialQueue.updatedAt) > Date.parse(remoteQueue.updatedAt);
+        if (mayRecoverLegacyTokens) {
+          const recoveryResponse = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: { type: "reconcile", localState: initialQueue } })
+          });
+          if (recoveryResponse.ok) {
+            const recovered = (await recoveryResponse.json()) as { state?: QueueState };
+            if (recovered.state) {
+              acceptIncoming(recovered.state);
+              return;
+            }
+          }
+        }
         acceptIncoming(remoteQueue);
       } else if (pathname !== "/patient") {
         const seedResponse = await fetch("/api/queue", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(initialQueue)
+          body: JSON.stringify({ action: { type: "initialize", state: initialQueue } })
         });
         if (!seedResponse.ok) throw new Error("Could not initialize the clinic queue");
         const seeded = (await seedResponse.json()) as { state?: QueueState };
@@ -154,7 +175,7 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     }
 
     channelRef.current = createQueueChannel((incoming) => {
-      acceptIncoming(incoming);
+      acceptIncoming(incoming, "local");
     });
 
     const unsubscribeRealtime = isQueueSyncConfigured && pathname !== "/patient" && publicQueueSignalRef
@@ -178,7 +199,7 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     const onStorage = (event: StorageEvent) => {
       if (event.key === "tokenflow.queue.v1") {
         const fresh = loadQueue();
-        acceptIncoming(fresh);
+        acceptIncoming(fresh, "local");
       }
     };
 
@@ -193,45 +214,54 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
-  const commit = useCallback(
-    (updater: (state: QueueState) => QueueState, isCallAction = false) => {
-      setQueue((current) => {
-        const nextState = updater(current);
-        saveQueue(nextState);
-        channelRef.current?.post(nextState);
-        if (isQueueSyncConfigured) {
-          void fetch("/api/queue", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(nextState)
-          }).then(async (response) => {
-            if (!response.ok) {
-              if (response.status === 401) {
-                window.location.assign(`/login?next=${encodeURIComponent(pathname ?? "/control")}`);
-                return;
-              }
-              setSyncStatus("offline");
-              return;
-            }
-            const result = (await response.json()) as { state?: QueueState };
-            if (result.state) {
-              saveQueue(result.state);
-              setQueue(result.state);
-            }
-            setSyncStatus("live");
-          }).catch(() => setSyncStatus("offline"));
-        }
+  const commit = useCallback(async (action: QueueMutation, isCallAction = false): Promise<QueueState> => {
+    const optimisticState = applyQueueAction(queueRef.current, action);
+    queueRef.current = optimisticState;
+    saveQueue(optimisticState);
+    setQueue(optimisticState);
+    if (!isQueueSyncConfigured) {
+      channelRef.current?.post(optimisticState);
+    }
 
-        if (isCallAction && nextState.lastCalledToken && nextState.lastCalledName) {
-          lastProcessedCallRef.current = nextState.lastCalledAt;
-          triggerCallAlert(nextState.lastCalledToken, nextState.lastCalledName);
-        }
+    if (isCallAction && optimisticState.lastCalledToken && optimisticState.lastCalledName) {
+      lastProcessedCallRef.current = optimisticState.lastCalledAt;
+      triggerCallAlert(optimisticState.lastCalledToken, optimisticState.lastCalledName);
+    }
+    if (!isQueueSyncConfigured) return optimisticState;
 
-        return nextState;
+    pendingActionsRef.current += 1;
+    try {
+      const response = await fetch("/api/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
       });
-    },
-    [triggerCallAlert]
-  );
+      if (response.status === 401) {
+        window.location.assign(`/login?next=${encodeURIComponent(pathname ?? "/control")}`);
+        return optimisticState;
+      }
+      if (!response.ok) {
+        setSyncStatus("offline");
+        return optimisticState;
+      }
+      const result = (await response.json()) as { state?: QueueState };
+      if (result.state) {
+        const currentRevision = queueRef.current.syncRevision ?? 0;
+        if ((result.state.syncRevision ?? 0) >= currentRevision) {
+          queueRef.current = result.state;
+          saveQueue(result.state);
+          setQueue(result.state);
+        }
+      }
+      setSyncStatus("live");
+      return result.state ?? optimisticState;
+    } catch {
+      setSyncStatus("offline");
+      return optimisticState;
+    } finally {
+      pendingActionsRef.current = Math.max(0, pendingActionsRef.current - 1);
+    }
+  }, [pathname, triggerCallAlert]);
 
   const enableNotifications = useCallback(async () => {
     const granted = await requestNotificationPermission();
@@ -250,17 +280,19 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
       isReady,
       syncStatus,
       stats,
-      issue: (patientName, patientPhone, patientAccessKey) =>
-        commit((state) => issueToken(state, patientName, patientPhone, patientAccessKey)),
-      next: () => commit(callNextToken, true),
-      callSpecific: (tokenNumber) =>
-        commit((state) => callSpecificToken(state, tokenNumber), true),
-      completeCheckup: () => commit(completeCurrentCheckup),
-      skip: (tokenNumber) => commit((state) => skipCurrentToken(state, tokenNumber)),
-      requeue: (tokenNumber) => commit((state) => requeueToken(state, tokenNumber)),
-      cancel: (tokenNumber) => commit((state) => cancelToken(state, tokenNumber)),
-      reset: () => commit(resetQueue),
-      saveSettings: (settings) => commit((state) => updateSettings(state, settings)),
+      issue: async (patientName, patientPhone, patientAccessKey) => {
+        const accessKey = patientAccessKey ?? globalThis.crypto.randomUUID();
+        const result = await commit({ type: "issue", patientName, patientPhone, patientAccessKey: accessKey });
+        return result.tokens.find((token) => token.patientAccessKey === accessKey);
+      },
+      next: () => void commit({ type: "next" }, true),
+      callSpecific: (tokenNumber) => void commit({ type: "callSpecific", tokenNumber }, true),
+      completeCheckup: () => void commit({ type: "complete" }),
+      skip: (tokenNumber) => void commit({ type: "skip", tokenNumber }),
+      requeue: (tokenNumber) => void commit({ type: "requeue", tokenNumber }),
+      cancel: (tokenNumber) => void commit({ type: "cancel", tokenNumber }),
+      reset: () => void commit({ type: "reset" }),
+      saveSettings: (settings) => void commit({ type: "settings", settings }),
       audioEnabled,
       setAudioEnabled,
       notificationsEnabled,

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { isStaffRequest } from "@/lib/serverAuth";
-import { defaultQueueState } from "@/lib/queue";
-import type { QueueState } from "@/lib/queue";
+import { applyQueueAction, defaultQueueState } from "@/lib/queue";
+import type { QueueAction, QueueState } from "@/lib/queue";
 import { clinicId } from "@/lib/firebase";
 import { firebaseMessagingAdmin, firestoreAdmin } from "@/lib/firebaseAdmin";
 
@@ -15,33 +15,30 @@ export async function GET(request: Request) {
   if (!clinicId || !firestoreAdmin) {
     return NextResponse.json({ message: "Live queue sync is not configured." }, { status: 503 });
   }
+  const adminDb = firestoreAdmin;
 
-  let snapshot;
+  let result;
   try {
-    snapshot = await firestoreAdmin.doc(`clinics/${clinicId}/private/queueState`).get();
+    result = await adminDb.runTransaction(async (transaction) => {
+      const queueRef = adminDb.doc(`clinics/${clinicId}/private/queueState`);
+      const signalRef = adminDb.doc(`clinics/${clinicId}/public/queueSignal`);
+      const snapshot = await transaction.get(queueRef);
+      const savedState = snapshot.data()?.state as QueueState | undefined;
+      if (!savedState) return { state: null as QueueState | null };
+
+      const state = normalizeQueueState(savedState);
+      const needsMigration = Array.isArray(savedState.tokens) && savedState.tokens.some((token) => !token.patientAccessKey);
+      if (needsMigration) {
+        state.syncRevision = savedState.syncRevision ?? 0;
+        transaction.set(queueRef, { state, updatedAt: state.updatedAt });
+        transaction.set(signalRef, { revision: Date.now(), updatedAt: state.updatedAt });
+      }
+      return { state };
+    });
   } catch {
     return NextResponse.json({ message: "Unable to load the clinic queue." }, { status: 500 });
   }
-  const savedState = snapshot.data()?.state;
-  if (!savedState) return NextResponse.json(null, { headers: { "Cache-Control": "no-store" } });
-
-  const state = savedState as QueueState;
-  let didMigrate = false;
-  state.tokens = state.tokens.map((token) => {
-    if (token.patientAccessKey) return token;
-    didMigrate = true;
-    return { ...token, patientAccessKey: randomUUID() };
-  });
-  if (didMigrate) {
-    try {
-      const updatedAt = new Date().toISOString();
-      await firestoreAdmin.doc(`clinics/${clinicId}/private/queueState`).set({ state, updatedAt });
-      await firestoreAdmin.doc(`clinics/${clinicId}/public/queueSignal`).set({ revision: Date.now(), updatedAt });
-    } catch {
-      return NextResponse.json({ message: "Unable to secure patient tracker links." }, { status: 500 });
-    }
-  }
-  return NextResponse.json(state, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(result.state, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(request: Request) {
   if (!(await isStaffRequest(request))) {
@@ -50,35 +47,77 @@ export async function POST(request: Request) {
   if (!clinicId || !firestoreAdmin) {
     return NextResponse.json({ message: "Live queue sync is not configured." }, { status: 503 });
   }
+  const adminDb = firestoreAdmin;
 
-  const body = (await request.json().catch(() => null)) as QueueState | null;
-  if (!body || !Array.isArray(body.tokens) || !Number.isFinite(body.totalIssued)) {
-    return NextResponse.json({ message: "Invalid queue state." }, { status: 400 });
+  const body = await request.json().catch(() => null) as { action?: QueueAction } & Partial<QueueState> | null;
+  const isLegacySnapshot = Boolean(body && !body.action && Array.isArray(body.tokens));
+  const action = body?.action ?? (isLegacySnapshot ? { type: "initialize", state: body as QueueState } : null);
+  if (!action || !isValidAction(action)) {
+    return NextResponse.json({ message: "Invalid queue action." }, { status: 400 });
   }
 
-  const state: QueueState = {
-    ...defaultQueueState,
-    ...body,
-    tokens: body.tokens.map((token) => ({
-      ...token,
-      patientName: String(token.patientName ?? `Patient #${token.tokenNumber}`),
-      patientPhone: token.patientPhone ? String(token.patientPhone) : undefined,
-      patientAccessKey: token.patientAccessKey || randomUUID()
-    }))
-  };
-  let previousState: QueueState | undefined;
+  let transactionResult: { state: QueueState; previousState?: QueueState; created: boolean };
   try {
-    previousState = (await firestoreAdmin.doc(`clinics/${clinicId}/private/queueState`).get()).data()?.state as QueueState | undefined;
-  } catch {
-    return NextResponse.json({ message: "Unable to check the previous clinic queue." }, { status: 500 });
-  }
-  const updatedAt = new Date().toISOString();
-  try {
-    await firestoreAdmin.doc(`clinics/${clinicId}/private/queueState`).set({ state, updatedAt });
-    await firestoreAdmin.doc(`clinics/${clinicId}/public/queueSignal`).set({ revision: Date.now(), updatedAt });
+    transactionResult = await adminDb.runTransaction(async (transaction) => {
+      const queueRef = adminDb.doc(`clinics/${clinicId}/private/queueState`);
+      const signalRef = adminDb.doc(`clinics/${clinicId}/public/queueSignal`);
+      const snapshot = await transaction.get(queueRef);
+      const savedState = snapshot.data()?.state as QueueState | undefined;
+
+      if (action.type === "initialize" && savedState) {
+        return { state: normalizeQueueState(savedState), previousState: savedState, created: false };
+      }
+
+      const previousState = savedState ? normalizeQueueState(savedState) : undefined;
+      let nextState: QueueState;
+      if (action.type === "initialize") {
+        nextState = normalizeQueueState(action.state);
+      } else if (action.type === "reconcile") {
+        const localState = normalizeQueueState(action.localState);
+        const existingTokenNumbers = new Set((previousState?.tokens ?? []).map((token) => token.tokenNumber));
+        const missingTokens = localState.tokens.filter(
+          (token) => token.tokenNumber > (previousState?.totalIssued ?? 0) &&
+            token.tokenNumber <= localState.totalIssued && !existingTokenNumbers.has(token.tokenNumber)
+        );
+        const mayRestoreLegacyQueue = Boolean(
+          savedState && (savedState.syncRevision ?? 0) === 0 && action.localState.syncRevision === undefined &&
+          localState.totalIssued > (previousState?.totalIssued ?? 0) &&
+          Date.parse(localState.updatedAt) > Date.parse(previousState?.updatedAt ?? "") &&
+          missingTokens.length > 0
+        );
+        if (!mayRestoreLegacyQueue || !previousState) {
+          return { state: previousState ?? defaultQueueState, previousState: savedState, created: false };
+        }
+        nextState = {
+          ...previousState,
+          totalIssued: Math.max(previousState.totalIssued, localState.totalIssued),
+          tokens: [...previousState.tokens, ...missingTokens],
+          updatedAt: new Date().toISOString(),
+          syncRevision: 1
+        };
+      } else {
+        nextState = applyQueueAction(previousState ?? defaultQueueState, action);
+      }
+
+      if (action.type !== "reconcile") {
+        nextState.syncRevision = (previousState?.syncRevision ?? 0) + 1;
+      }
+      transaction.set(queueRef, { state: nextState, updatedAt: nextState.updatedAt });
+      transaction.set(signalRef, { revision: nextState.syncRevision, updatedAt: nextState.updatedAt });
+      return { state: nextState, previousState, created: true };
+    });
   } catch {
     return NextResponse.json({ message: "Unable to save the clinic queue." }, { status: 500 });
   }
+
+  if (isLegacySnapshot && !transactionResult.created) {
+    return NextResponse.json(
+      { message: "Legacy queue snapshot rejected; refresh to load the shared queue.", state: transactionResult.state },
+      { status: 409, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const { state, previousState } = transactionResult;
   if (
     state.lastCalledAt &&
     state.lastCalledAt !== previousState?.lastCalledAt &&
@@ -88,6 +127,50 @@ export async function POST(request: Request) {
     await notifyPatientOfTheirTurn(request, state, state.lastCalledToken);
   }
   return NextResponse.json({ ok: true, state }, { headers: { "Cache-Control": "no-store" } });
+}
+
+function normalizeQueueState(state: QueueState): QueueState {
+  return {
+    ...defaultQueueState,
+    ...state,
+    syncRevision: state.syncRevision ?? 0,
+    tokens: (Array.isArray(state.tokens) ? state.tokens : []).map((token) => ({
+      ...token,
+      patientName: String(token.patientName ?? `Patient #${token.tokenNumber}`),
+      patientPhone: token.patientPhone ? String(token.patientPhone) : undefined,
+      patientAccessKey: token.patientAccessKey || randomUUID()
+    }))
+  };
+}
+
+function isValidAction(action: QueueAction): boolean {
+  if (!action || typeof action !== "object" || !("type" in action)) return false;
+  switch (action.type) {
+    case "initialize":
+      return Boolean(action.state && Array.isArray(action.state.tokens) && Number.isInteger(action.state.totalIssued));
+    case "reconcile":
+      return Boolean(action.localState && Array.isArray(action.localState.tokens) && Number.isInteger(action.localState.totalIssued));
+    case "issue":
+      return (action.patientName === undefined || typeof action.patientName === "string") &&
+        (action.patientPhone === undefined || typeof action.patientPhone === "string") &&
+        (action.patientAccessKey === undefined || typeof action.patientAccessKey === "string");
+    case "next":
+    case "complete":
+    case "reset":
+      return true;
+    case "callSpecific":
+    case "requeue":
+    case "cancel":
+      return Number.isInteger(action.tokenNumber) && action.tokenNumber > 0;
+    case "skip":
+      return action.tokenNumber === undefined || (Number.isInteger(action.tokenNumber) && action.tokenNumber > 0);
+    case "settings":
+      return typeof action.settings?.clinicName === "string" &&
+        typeof action.settings?.doctorName === "string" &&
+        Number.isFinite(action.settings?.avgConsultMinutes) && action.settings.avgConsultMinutes > 0;
+    default:
+      return false;
+  }
 }
 
 async function notifyPatientOfTheirTurn(request: Request, state: QueueState, tokenNumber: number) {

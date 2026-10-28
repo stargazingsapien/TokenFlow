@@ -21,10 +21,24 @@ export type QueueState = {
   totalIssued: number;
   tokens: TokenRecord[];
   updatedAt: string;
+  syncRevision?: number;
   lastCalledAt?: string;
   lastCalledToken?: number;
   lastCalledName?: string;
 };
+
+export type QueueAction =
+  | { type: "initialize"; state: QueueState }
+  | { type: "reconcile"; localState: QueueState }
+  | { type: "issue"; patientName?: string; patientPhone?: string; patientAccessKey?: string }
+  | { type: "next" }
+  | { type: "callSpecific"; tokenNumber: number }
+  | { type: "complete" }
+  | { type: "skip"; tokenNumber?: number }
+  | { type: "requeue"; tokenNumber: number }
+  | { type: "cancel"; tokenNumber: number }
+  | { type: "reset" }
+  | { type: "settings"; settings: Pick<QueueState, "clinicName" | "doctorName" | "avgConsultMinutes"> };
 
 export type QueueDynamicStats = {
   servingToken: TokenRecord | null;
@@ -125,7 +139,8 @@ export function issueToken(
   patientPhone?: string,
   patientAccessKey?: string
 ): QueueState {
-  const nextToken = state.totalIssued + 1;
+  const highestExistingToken = state.tokens.reduce((highest, token) => Math.max(highest, token.tokenNumber), 0);
+  const nextToken = Math.max(state.totalIssued, highestExistingToken) + 1;
   const cleanName =
     patientName && patientName.trim().length > 0 ? patientName.trim() : `Patient #${nextToken}`;
   const cleanPhone = patientPhone ? patientPhone.trim() : undefined;
@@ -319,6 +334,32 @@ export function updateSettings(
   settings: Pick<QueueState, "clinicName" | "doctorName" | "avgConsultMinutes">
 ): QueueState {
   return touch({ ...state, ...settings });
+}
+
+export function applyQueueAction(
+  state: QueueState,
+  action: Exclude<QueueAction, { type: "initialize" | "reconcile" }>
+): QueueState {
+  switch (action.type) {
+    case "issue":
+      return issueToken(state, action.patientName, action.patientPhone, action.patientAccessKey);
+    case "next":
+      return callNextToken(state);
+    case "callSpecific":
+      return callSpecificToken(state, action.tokenNumber);
+    case "complete":
+      return completeCurrentCheckup(state);
+    case "skip":
+      return skipCurrentToken(state, action.tokenNumber);
+    case "requeue":
+      return requeueToken(state, action.tokenNumber);
+    case "cancel":
+      return cancelToken(state, action.tokenNumber);
+    case "reset":
+      return resetQueue(state);
+    case "settings":
+      return updateSettings(state, action.settings);
+  }
 }
 
 export function calculateDynamicStats(state: QueueState, nowMs = Date.now()): QueueDynamicStats {

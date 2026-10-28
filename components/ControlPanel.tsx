@@ -105,25 +105,27 @@ export function ControlPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [next, stats.waitingCount]);
 
-  const handleIssueToken = (e?: React.FormEvent) => {
+  const handleIssueToken = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const name = newPatientName.trim();
     const accessKey = createPatientAccessKey();
-    issue(name, newPatientPhone, accessKey);
-    const assignedName = name || `Patient #${queue.totalIssued + 1}`;
-    setLastIssuedMessage(`#${queue.totalIssued + 1} · ${assignedName}`);
-    setLastIssuedToken(queue.totalIssued + 1);
+    const issuedToken = await issue(name, newPatientPhone, accessKey);
+    const tokenNumber = issuedToken?.tokenNumber ?? queue.totalIssued + 1;
+    const assignedName = issuedToken?.patientName ?? (name || `Patient #${tokenNumber}`);
+    setLastIssuedMessage(`#${tokenNumber} · ${assignedName}`);
+    setLastIssuedToken(tokenNumber);
     setLastIssuedAccessKey(accessKey ?? null);
     setNewPatientName("");
     setNewPatientPhone("");
     setTimeout(() => setLastIssuedMessage(null), 4500);
   };
 
-  const handleQuickIssue = () => {
+  const handleQuickIssue = async () => {
     const accessKey = createPatientAccessKey();
-    issue(undefined, undefined, accessKey);
-    setLastIssuedMessage(`#${queue.totalIssued + 1} · Patient #${queue.totalIssued + 1}`);
-    setLastIssuedToken(queue.totalIssued + 1);
+    const issuedToken = await issue(undefined, undefined, accessKey);
+    const tokenNumber = issuedToken?.tokenNumber ?? queue.totalIssued + 1;
+    setLastIssuedMessage(`#${tokenNumber} · ${issuedToken?.patientName ?? `Patient #${tokenNumber}`}`);
+    setLastIssuedToken(tokenNumber);
     setLastIssuedAccessKey(accessKey ?? null);
     setTimeout(() => setLastIssuedMessage(null), 4000);
   };
